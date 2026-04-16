@@ -9,6 +9,16 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Jan-Pro QuoteBuilder",
   description: "Jan-Pro Franchise Development - Commercial Cleaning Quote Tool",
+  manifest: "/manifest.json",
+  themeColor: "#003087",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "JAN-PRO QuoteBuilder",
+  },
+  icons: {
+    apple: "https://res.cloudinary.com/duy32f0q4/image/upload/q_auto/f_auto/v1776309034/Untitled_design_5_ahmhjl.png",
+  },
 };
 
 export default function RootLayout({
