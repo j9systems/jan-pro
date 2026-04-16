@@ -1,0 +1,33 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppHeader } from "@/components/app-header";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Jan-Pro QuoteBuilder",
+  description: "Jan-Pro Franchise Development - Commercial Cleaning Quote Tool",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className={`${inter.className} antialiased`}>
+        <TooltipProvider>
+          <div className="min-h-screen flex flex-col">
+            <AppHeader />
+            <main className="flex-1 bg-white">
+              {children}
+            </main>
+          </div>
+        </TooltipProvider>
+      </body>
+    </html>
+  );
+}
