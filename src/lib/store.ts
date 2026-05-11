@@ -21,6 +21,8 @@ function createBlankArea(sortOrder: number): QuoteArea {
     blindCount: 0,
     sutmCount: 0,
     pictureFrames: 0,
+    photos: [],
+    notes: "",
     totalSqft: 0,
     minsPerVisit: 0,
     costPerMonth: 0,
@@ -50,6 +52,7 @@ function createBlankQuote(): Quote {
     initialClean: false,
     specialEquipment: false,
     restrictedClean: false,
+    numAreas: 1,
     areas: [createBlankArea(1)],
     porters: [],
     initialCleanData: {
@@ -87,6 +90,7 @@ interface QuoteStore {
   addArea: () => void;
   updateArea: (id: string, partial: Partial<QuoteArea>) => void;
   removeArea: (id: string) => void;
+  setAreasCount: (count: number) => void;
   addPorter: () => void;
   removePorter: (porterNumber: 1 | 2) => void;
   updatePorter: (porterNumber: 1 | 2, partial: Partial<Porter>) => void;
@@ -155,6 +159,30 @@ export const useQuoteStore = create<QuoteStore>()(
           areas: currentQuote.areas
             .filter((a) => a.id !== id)
             .map((a, i) => ({ ...a, sortOrder: i + 1 })),
+          updatedAt: new Date().toISOString(),
+        };
+        updated.numAreas = updated.areas.length;
+        const calcs = calculateQuote(updated);
+        set({ currentQuote: { ...updated, ...calcs } as Quote });
+      },
+
+      setAreasCount: (count) => {
+        const { currentQuote } = get();
+        if (!currentQuote) return;
+        const current = currentQuote.areas.length;
+        let areas = [...currentQuote.areas];
+        if (count > current) {
+          for (let i = current; i < count; i++) {
+            areas.push(createBlankArea(i + 1));
+          }
+        } else if (count < current) {
+          areas = areas.slice(0, count);
+        }
+        areas = areas.map((a, i) => ({ ...a, sortOrder: i + 1 }));
+        const updated = {
+          ...currentQuote,
+          areas,
+          numAreas: count,
           updatedAt: new Date().toISOString(),
         };
         const calcs = calculateQuote(updated);

@@ -14,6 +14,10 @@ export interface QuoteArea {
   blindCount: number;
   sutmCount: number;
   pictureFrames: number;
+  // photos (base64)
+  photos: string[];
+  // voice note transcription
+  notes: string;
   // calculated
   totalSqft: number;
   minsPerVisit: number;
@@ -82,6 +86,7 @@ export interface Quote {
   initialClean: boolean;
   specialEquipment: boolean;
   restrictedClean: boolean;
+  numAreas: number;
   // Areas
   areas: QuoteArea[];
   // Add-ons

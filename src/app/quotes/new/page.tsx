@@ -29,6 +29,7 @@ export default function NewQuotePage() {
   const initNewQuote = useQuoteStore((s) => s.initNewQuote);
   const saveQuote = useQuoteStore((s) => s.saveQuote);
   const updateQuote = useQuoteStore((s) => s.updateQuote);
+  const setAreasCount = useQuoteStore((s) => s.setAreasCount);
 
   useEffect(() => {
     if (!quote) {
@@ -46,6 +47,13 @@ export default function NewQuotePage() {
 
   const handleContinue = () => {
     if (currentStep < STEPS.length - 1) {
+      // When moving from Facility → Areas, sync areas count
+      if (currentStep === 1 && quote) {
+        const target = quote.numAreas || 1;
+        if (quote.areas.length !== target) {
+          setAreasCount(target);
+        }
+      }
       setStep(currentStep + 1);
     }
   };
