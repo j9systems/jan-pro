@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     title: "JAN-PRO QuoteBuilder",
   },
   icons: {
+    icon: "/favicon.ico",
     apple: "https://res.cloudinary.com/duy32f0q4/image/upload/q_auto/f_auto/v1776309034/Untitled_design_5_ahmhjl.png",
   },
 };
