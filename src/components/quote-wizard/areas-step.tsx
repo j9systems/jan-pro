@@ -345,6 +345,18 @@ export function AreasStep() {
   const [currentAreaIndex, setCurrentAreaIndex] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // If AI Summary sent the user here targeting a specific area, jump to it
+  useEffect(() => {
+    const target = sessionStorage.getItem("janpro-goto-area");
+    if (target !== null) {
+      sessionStorage.removeItem("janpro-goto-area");
+      const idx = parseInt(target, 10);
+      if (!isNaN(idx)) {
+        setCurrentAreaIndex(idx);
+      }
+    }
+  }, []);
+
   if (!quote) return null;
 
   const areas = quote.areas;

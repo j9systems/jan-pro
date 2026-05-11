@@ -6,11 +6,201 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  Sparkles,
+  ArrowRight,
+  Camera,
+  Mic,
+  Ruler,
+  MapPin,
+  CheckCircle2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
 import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
 import { REGIONS, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
+
+// Placeholder suggestions to demonstrate the AI Summary UI.
+// Once wired up, these will be generated dynamically by cross-referencing
+// photos, voice notes, and numeric inputs for each area.
+interface AISuggestion {
+  id: string;
+  type: "warning" | "info" | "success";
+  icon: "ruler" | "camera" | "mic" | "mappin";
+  area: string;
+  areaIndex: number;
+  message: string;
+  detail: string;
+}
+
+const PLACEHOLDER_SUGGESTIONS: AISuggestion[] = [
+  {
+    id: "1",
+    type: "warning",
+    icon: "ruler",
+    area: "Main Lobby",
+    areaIndex: 0,
+    message: "Square footage may be incorrect",
+    detail:
+      'The photo shows a small reception area, but 3,000 sq ft of carpet was entered. Did you mean 300 sq ft?',
+  },
+  {
+    id: "2",
+    type: "warning",
+    icon: "camera",
+    area: "Break Room",
+    areaIndex: 1,
+    message: "Flooring type mismatch",
+    detail:
+      "The uploaded photo appears to show VCT flooring, but only ceramic was entered for this area.",
+  },
+  {
+    id: "3",
+    type: "info",
+    icon: "mic",
+    area: "Restrooms",
+    areaIndex: 2,
+    message: "Voice note mentions additional fixtures",
+    detail:
+      'Your voice note says "there are 4 sinks and 2 hand dryers" but SUTM count is set to 0. Consider updating.',
+  },
+  {
+    id: "4",
+    type: "success",
+    icon: "mappin",
+    area: "Office Wing",
+    areaIndex: 3,
+    message: "Looks good",
+    detail:
+      "Photo, notes, and measurements all align for this area. No issues detected.",
+  },
+];
+
+const ICON_MAP = {
+  ruler: Ruler,
+  camera: Camera,
+  mic: Mic,
+  mappin: MapPin,
+};
+
+const TYPE_STYLES = {
+  warning:
+    "border-amber-200 bg-amber-50/50",
+  info: "border-blue-200 bg-blue-50/50",
+  success: "border-emerald-200 bg-emerald-50/50",
+};
+
+const TYPE_ICON_STYLES = {
+  warning: "text-amber-600 bg-amber-100",
+  info: "text-blue-600 bg-blue-100",
+  success: "text-emerald-600 bg-emerald-100",
+};
+
+function AISummaryCard() {
+  const setStep = useQuoteStore((s) => s.setStep);
+  // In a real implementation, this would call an AI endpoint and
+  // populate suggestions dynamically. For now, show placeholder UI.
+  const suggestions = PLACEHOLDER_SUGGESTIONS;
+  const warningCount = suggestions.filter((s) => s.type === "warning").length;
+  const infoCount = suggestions.filter((s) => s.type === "info").length;
+  const successCount = suggestions.filter((s) => s.type === "success").length;
+
+  const handleGoToArea = (areaIndex: number) => {
+    // Navigate back to the Areas step (step index 2)
+    // The areas step will need to pick up the target area index.
+    // For now, store in sessionStorage so areas-step can read it.
+    sessionStorage.setItem("janpro-goto-area", String(areaIndex));
+    setStep(2);
+  };
+
+  return (
+    <Card className="border-janpro-navy/30 bg-gradient-to-br from-slate-50 to-white">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-janpro-navy/10">
+              <Sparkles className="h-5 w-5 text-janpro-navy" />
+            </div>
+            <div>
+              <CardTitle className="text-base text-janpro-navy">
+                AI Review
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Cross-referencing photos, voice notes, and measurements
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {warningCount > 0 && (
+              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-xs">
+                {warningCount} {warningCount === 1 ? "issue" : "issues"}
+              </Badge>
+            )}
+            {infoCount > 0 && (
+              <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 text-xs">
+                {infoCount} {infoCount === 1 ? "suggestion" : "suggestions"}
+              </Badge>
+            )}
+            {successCount > 0 && (
+              <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 text-xs">
+                {successCount} verified
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-3">
+        {suggestions.map((s) => {
+          const Icon = ICON_MAP[s.icon];
+          return (
+            <div
+              key={s.id}
+              className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_STYLES[s.type]}`}
+            >
+              <div
+                className={`p-1.5 rounded-md shrink-0 mt-0.5 ${TYPE_ICON_STYLES[s.type]}`}
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm font-medium">{s.area}</span>
+                  <span className="text-xs text-muted-foreground">
+                    &mdash; {s.message}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {s.detail}
+                </p>
+              </div>
+              {s.type !== "success" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-xs h-8 gap-1"
+                  onClick={() => handleGoToArea(s.areaIndex)}
+                >
+                  Revise
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-1" />
+              )}
+            </div>
+          );
+        })}
+
+        <div className="pt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <Sparkles className="h-3 w-3" />
+          <span>AI analysis will run automatically once connected</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function SummaryStep() {
   const quote = useQuoteStore((s) => s.currentQuote);
@@ -38,6 +228,9 @@ export function SummaryStep() {
           Review calculated costs and set the quoted monthly amount.
         </p>
       </div>
+
+      {/* AI Summary */}
+      <AISummaryCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Input Summary */}
