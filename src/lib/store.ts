@@ -52,7 +52,7 @@ function createBlankQuote(): Quote {
     initialClean: false,
     specialEquipment: false,
     restrictedClean: false,
-    numAreas: 1,
+    numAreas: 0,
     areas: [createBlankArea(1)],
     porters: [],
     initialCleanData: {
