@@ -149,10 +149,22 @@ export function FacilityStep() {
             type="number"
             inputMode="numeric"
             min={1}
-            value={quote.numAreas || ""}
+            value={quote.numAreas === 0 ? "" : quote.numAreas}
             onChange={(e) => {
-              const val = parseInt(e.target.value) || 1;
-              updateQuote({ numAreas: val });
+              const raw = e.target.value;
+              if (raw === "") {
+                updateQuote({ numAreas: 0 });
+              } else {
+                const val = parseInt(raw);
+                if (!isNaN(val) && val >= 0) {
+                  updateQuote({ numAreas: val });
+                }
+              }
+            }}
+            onBlur={() => {
+              if (!quote.numAreas || quote.numAreas < 1) {
+                updateQuote({ numAreas: 1 });
+              }
             }}
             placeholder="1"
           />
