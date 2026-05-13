@@ -275,21 +275,21 @@ export function SummaryStep() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">Area</th>
-                      <th className="pb-2 font-medium">Floor</th>
-                      <th className="pb-2 font-medium text-right">Qty</th>
-                      <th className="pb-2 font-medium text-right">Total Sq Ft</th>
-                      <th className="pb-2 font-medium text-right">Min/Visit</th>
-                      <th className="pb-2 font-medium text-right">Monthly</th>
+                      <th className="pb-2 font-medium w-[28%]">Area</th>
+                      <th className="pb-2 font-medium w-[20%]">Floor</th>
+                      <th className="pb-2 font-medium text-right w-[8%]">Qty</th>
+                      <th className="pb-2 font-medium text-right w-[14%] whitespace-nowrap">Sq Ft</th>
+                      <th className="pb-2 font-medium text-right w-[14%] whitespace-nowrap">Min/Visit</th>
+                      <th className="pb-2 font-medium text-right w-[16%]">Monthly</th>
                     </tr>
                   </thead>
                   <tbody>
                     {quote.areas.map((area) => (
                       <tr key={area.id} className="border-b last:border-0">
-                        <td className="py-2">
+                        <td className="py-2 pr-2">
                           <div>
                             {area.areaName || `Area ${area.sortOrder}`}
                             <span className="text-xs text-muted-foreground ml-1">
@@ -297,7 +297,7 @@ export function SummaryStep() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-2 text-xs">
+                        <td className="py-2 pr-2 text-xs">
                           {getFloorLabel(area.floorType)}
                         </td>
                         <td className="py-2 text-right">
