@@ -141,37 +141,6 @@ export function FacilityStep() {
             placeholder="0"
           />
         </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="numAreas">How many areas will need to be cleaned?</Label>
-          <Input
-            id="numAreas"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={quote.numAreas === 0 ? "" : quote.numAreas}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "") {
-                updateQuote({ numAreas: 0 });
-              } else {
-                const val = parseInt(raw);
-                if (!isNaN(val) && val >= 0) {
-                  updateQuote({ numAreas: val });
-                }
-              }
-            }}
-            onBlur={() => {
-              if (!quote.numAreas || quote.numAreas < 1) {
-                updateQuote({ numAreas: 1 });
-              }
-            }}
-            placeholder="1"
-          />
-          <p className="text-xs text-muted-foreground">
-            This will pre-create areas for you in the next step. You can still add or remove areas later.
-          </p>
-        </div>
       </div>
 
       {/* Condition Rating */}

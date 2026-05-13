@@ -43,42 +43,24 @@ export function calculateAreaMinsPerVisit(
   densityTier: DensityTier
 ): number {
   let mins = 0;
+  const totalSqft = area.sqftTotal;
 
-  // Carpet uses density-adjusted rate
-  if (area.carpetSqft > 0) {
-    const carpetRate = getCarpetRate(visitsPerWeek, densityTier);
-    mins += (area.carpetSqft / carpetRate) * 60;
-  }
-
-  // Other floor types use standard rates
-  const floorMappings: [number, string][] = [
-    [area.vctSqft, "vct"],
-    [area.tileSqft, "tile"],
-    [area.ceramicSqft, "ceramic"],
-    [area.woodSqft, "wood"],
-    [area.concreteSqft, "concrete"],
-    [area.hardSurfaceOtherSqft, "hard_surface_other"],
-    [area.linoleumSqft, "linoleum"],
-  ];
-
-  for (const [sqft, type] of floorMappings) {
-    if (sqft > 0) {
-      mins += (sqft / FLOOR_RATES_SQFT_PER_HR[type]) * 60;
+  if (totalSqft > 0) {
+    if (area.floorType === "carpet") {
+      const carpetRate = getCarpetRate(visitsPerWeek, densityTier);
+      mins += (totalSqft / carpetRate) * 60;
+    } else {
+      const rate = FLOOR_RATES_SQFT_PER_HR[area.floorType] ?? 2500;
+      mins += (totalSqft / rate) * 60;
     }
   }
 
-  // Unit-based items
-  if (area.showerCount > 0) {
-    mins += area.showerCount * UNIT_RATES_MINS_PER_UNIT.shower;
-  }
-  if (area.blindCount > 0) {
-    mins += area.blindCount * UNIT_RATES_MINS_PER_UNIT.blind;
-  }
-  if (area.sutmCount > 0) {
-    mins += area.sutmCount * UNIT_RATES_MINS_PER_UNIT.sutm;
-  }
-  if (area.pictureFrames > 0) {
-    mins += area.pictureFrames * UNIT_RATES_MINS_PER_UNIT.picture_frame;
+  // Unit-based items from flexible record
+  for (const [itemKey, count] of Object.entries(area.unitItems)) {
+    if (count > 0) {
+      const minsPerUnit = UNIT_RATES_MINS_PER_UNIT[itemKey] ?? 2.5;
+      mins += count * minsPerUnit;
+    }
   }
 
   return mins;
@@ -106,13 +88,13 @@ export function calculateInitialClean(data: InitialClean): number {
     totalHours += data.machineScrubSqft / INITIAL_CLEAN_RATES.machine_scrub;
   }
   if (data.showerCount > 0) {
-    totalHours += data.showerCount * (10 / 60); // 10 min each
+    totalHours += data.showerCount * (10 / 60);
   }
   if (data.blindCount > 0) {
-    totalHours += data.blindCount * (10 / 60); // 10 min each
+    totalHours += data.blindCount * (10 / 60);
   }
   if (data.sutmCount > 0) {
-    totalHours += data.sutmCount * (2.5 / 60); // 2.5 min each
+    totalHours += data.sutmCount * (2.5 / 60);
   }
 
   return totalHours * INITIAL_CLEAN_RATE + data.additionalServices;
@@ -130,32 +112,19 @@ export function getRegionalMinimum(region: string, visitsPerWeek: number): numbe
   const regionMins = REGIONAL_MONTHLY_MINIMUMS[region];
   if (!regionMins) return 0;
 
-  // For visitsPerWeek < 1, use the 1x minimum
   const lookupKey = visitsPerWeek < 1 ? 1 : Math.round(visitsPerWeek);
   return regionMins[lookupKey] ?? 0;
 }
 
-function getAreaTotalSqft(area: QuoteArea): number {
-  return (
-    area.carpetSqft +
-    area.vctSqft +
-    area.tileSqft +
-    area.ceramicSqft +
-    area.woodSqft +
-    area.concreteSqft +
-    area.hardSurfaceOtherSqft +
-    area.linoleumSqft
-  );
-}
-
 export function calculateQuote(quote: Quote): Partial<Quote> {
-  // Calculate total sqft from all areas
+  // Compute sqftTotal for each area
   const updatedAreas = quote.areas.map((area) => {
-    const totalSqft = getAreaTotalSqft(area);
-    return { ...area, totalSqft };
+    const sqft = area.sqftOverride ? area.sqft : (area.lengthFt * area.widthFt || area.sqft);
+    const sqftTotal = sqft * (area.quantity || 1);
+    return { ...area, sqft, sqftTotal };
   });
 
-  const totalSqft = updatedAreas.reduce((sum, a) => sum + a.totalSqft, 0);
+  const totalSqft = updatedAreas.reduce((sum, a) => sum + a.sqftTotal, 0);
   const facilityDensity = calculateFacilityDensity(totalSqft, quote.numEmployees);
   const facilityDensityTier = getDensityTier(facilityDensity);
   const hourlyRate = getEffectiveHourlyRate(quote.visitsPerWeek);
@@ -169,7 +138,11 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
 
   const totalMinsPerVisit = areasWithCalcs.reduce((sum, a) => sum + a.minsPerVisit, 0);
   const hoursPerVisit = totalMinsPerVisit / 60;
-  const sutmTotal = areasWithCalcs.reduce((sum, a) => sum + a.sutmCount, 0);
+
+  // Sum all unit items named "small_sudums" or "large_sudums" or "toilets" etc. for SUTM total
+  const sutmTotal = areasWithCalcs.reduce((sum, a) => {
+    return sum + (a.unitItems.small_sudums || 0) + (a.unitItems.large_sudums || 0);
+  }, 0);
 
   // Subtotal from areas
   const subtotalMonthly = areasWithCalcs.reduce((sum, a) => sum + a.costPerMonth, 0);

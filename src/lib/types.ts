@@ -1,25 +1,56 @@
+export type FloorType =
+  | "carpet"
+  | "hard_floor_vct"
+  | "hard_floor_tile"
+  | "hard_floor_ceramic"
+  | "hard_floor_wood"
+  | "hard_floor_concrete"
+  | "terrazzo"
+  | "rubber"
+  | "other";
+
+export type AreaType =
+  | "office"
+  | "conference_room"
+  | "hallway_corridor"
+  | "lobby_entry"
+  | "restroom"
+  | "classroom"
+  | "medical_exam"
+  | "production_plant"
+  | "break_room_kitchen"
+  | "stairwell"
+  | "storage"
+  | "common_area"
+  | "other";
+
+export interface AIFlag {
+  id: string;
+  type: "warning" | "info" | "success";
+  message: string;
+  detail: string;
+}
+
 export interface QuoteArea {
   id: string;
   sortOrder: number;
   areaName: string;
-  carpetSqft: number;
-  vctSqft: number;
-  tileSqft: number;
-  ceramicSqft: number;
-  woodSqft: number;
-  concreteSqft: number;
-  hardSurfaceOtherSqft: number;
-  linoleumSqft: number;
-  showerCount: number;
-  blindCount: number;
-  sutmCount: number;
-  pictureFrames: number;
-  // photos (base64)
+  floorType: FloorType;
+  floorTypeCustomLabel: string;
+  areaType: AreaType;
+  lengthFt: number;
+  widthFt: number;
+  sqft: number;
+  sqftOverride: boolean;
+  quantity: number;
+  sqftTotal: number;
+  unitItems: Record<string, number>;
   photos: string[];
-  // voice note transcription
+  videos: string[];
+  voiceMemos: string[];
   notes: string;
+  aiFlags: AIFlag[];
   // calculated
-  totalSqft: number;
   minsPerVisit: number;
   costPerMonth: number;
 }
@@ -86,7 +117,6 @@ export interface Quote {
   initialClean: boolean;
   specialEquipment: boolean;
   restrictedClean: boolean;
-  numAreas: number;
   // Areas
   areas: QuoteArea[];
   // Add-ons

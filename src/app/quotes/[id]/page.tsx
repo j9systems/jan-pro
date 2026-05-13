@@ -8,9 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Presentation } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, VISITS_PER_WEEK_OPTIONS } from "@/lib/constants";
+import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
-import { SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -186,37 +185,47 @@ export default function QuoteDetailPage() {
         {/* Areas */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Areas</CardTitle>
+            <CardTitle className="text-base">Areas ({quote.areas.length})</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="pb-2 font-medium">Area</th>
-                  <th className="pb-2 font-medium text-right">Sq Ft</th>
-                  <th className="pb-2 font-medium text-right">Min/Visit</th>
-                  <th className="pb-2 font-medium text-right">Monthly</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.areas.map((area) => (
-                  <tr key={area.id} className="border-b last:border-0">
-                    <td className="py-2">
-                      {area.areaName || `Area ${area.sortOrder}`}
-                    </td>
-                    <td className="py-2 text-right">
-                      {area.totalSqft.toLocaleString()}
-                    </td>
-                    <td className="py-2 text-right">
-                      {Math.round(area.minsPerVisit)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {formatCurrency(area.costPerMonth)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="pb-2 font-medium">Area</th>
+                    <th className="pb-2 font-medium">Floor Type</th>
+                    <th className="pb-2 font-medium text-right">Qty</th>
+                    <th className="pb-2 font-medium text-right">Sq Ft</th>
+                    <th className="pb-2 font-medium text-right">Min/Visit</th>
+                    <th className="pb-2 font-medium text-right">Monthly</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {quote.areas.map((area) => (
+                    <tr key={area.id} className="border-b last:border-0">
+                      <td className="py-2">
+                        {area.areaName || `Area ${area.sortOrder}`}
+                      </td>
+                      <td className="py-2 text-xs">
+                        {FLOOR_TYPES_V3.find((f) => f.value === area.floorType)?.label ?? area.floorType}
+                      </td>
+                      <td className="py-2 text-right">
+                        {area.quantity > 1 ? area.quantity : ""}
+                      </td>
+                      <td className="py-2 text-right">
+                        {area.sqftTotal.toLocaleString()}
+                      </td>
+                      <td className="py-2 text-right">
+                        {Math.round(area.minsPerVisit)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {formatCurrency(area.costPerMonth)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
 

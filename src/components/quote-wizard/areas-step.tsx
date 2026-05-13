@@ -4,8 +4,23 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Tooltip,
   TooltipContent,
@@ -14,39 +29,60 @@ import {
 import {
   Plus,
   Trash2,
-  ChevronLeft,
+  ChevronDown,
   ChevronRight,
-  Info,
   Camera,
   X,
   Mic,
   MicOff,
   ImageIcon,
+  Info,
 } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
-import type { QuoteArea } from "@/lib/types";
+import {
+  FLOOR_TYPES_V3,
+  AREA_TYPES,
+  ALL_UNIT_ITEMS,
+  UNIT_ITEMS_BY_AREA_TYPE,
+} from "@/lib/constants";
+import type { QuoteArea, FloorType, AreaType } from "@/lib/types";
 
-const FLOOR_TYPES: { key: keyof QuoteArea; label: string }[] = [
-  { key: "carpetSqft", label: "Carpet" },
-  { key: "vctSqft", label: "VCT" },
-  { key: "tileSqft", label: "Tile (Hard Surface)" },
-  { key: "ceramicSqft", label: "Ceramic" },
-  { key: "woodSqft", label: "Wood" },
-  { key: "concreteSqft", label: "Concrete" },
-  { key: "hardSurfaceOtherSqft", label: "Hard Surface Other" },
-  { key: "linoleumSqft", label: "Linoleum" },
-];
+// --- Aggregates Bar ---
 
-const UNIT_TYPES: { key: keyof QuoteArea; label: string; tooltip?: string }[] = [
-  { key: "showerCount", label: "Showers" },
-  { key: "blindCount", label: "Blinds" },
-  {
-    key: "sutmCount",
-    label: "SUTMs",
-    tooltip: "Special Unit Time Markers — restrooms, sinks, drinking fountains, etc.",
-  },
-  { key: "pictureFrames", label: "Picture Frames" },
-];
+function AggregatesBar({ areas }: { areas: QuoteArea[] }) {
+  const totalSqft = areas.reduce((sum, a) => sum + a.sqftTotal, 0);
+  const carpetSqft = areas
+    .filter((a) => a.floorType === "carpet")
+    .reduce((sum, a) => sum + a.sqftTotal, 0);
+  const hardSqft = totalSqft - carpetSqft;
+
+  return (
+    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-muted/50 rounded-lg text-sm">
+      <div>
+        <span className="text-muted-foreground">Areas:</span>{" "}
+        <span className="font-semibold">{areas.length}</span>
+      </div>
+      <div>
+        <span className="text-muted-foreground">Total Sq Ft:</span>{" "}
+        <span className="font-semibold">{totalSqft.toLocaleString()}</span>
+      </div>
+      {carpetSqft > 0 && (
+        <div>
+          <span className="text-muted-foreground">Carpet:</span>{" "}
+          <span className="font-medium">{carpetSqft.toLocaleString()}</span>
+        </div>
+      )}
+      {hardSqft > 0 && (
+        <div>
+          <span className="text-muted-foreground">Hard Floor:</span>{" "}
+          <span className="font-medium">{hardSqft.toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Photo Upload (reused from V2) ---
 
 function PhotoUpload({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
@@ -78,13 +114,13 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
     <div className="space-y-3">
       <Label className="flex items-center gap-2">
         <Camera className="h-4 w-4" />
-        Area Photos
+        Photos
       </Label>
-
       {(area.photos || []).length > 0 && (
         <div className="flex flex-wrap gap-2">
           {(area.photos || []).map((photo, i) => (
             <div key={i} className="relative group w-20 h-20 rounded-md overflow-hidden border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo} alt={`Area photo ${i + 1}`} className="w-full h-full object-cover" />
               <button
                 type="button"
@@ -97,7 +133,6 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
           ))}
         </div>
       )}
-
       <input
         ref={fileInputRef}
         type="file"
@@ -141,6 +176,8 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
   );
 }
 
+// --- Voice Notes (reused from V2) ---
+
 function VoiceNotes({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
   const [isRecording, setIsRecording] = useState(false);
@@ -153,9 +190,7 @@ function VoiceNotes({ area }: { area: QuoteArea }) {
       typeof window !== "undefined"
         ? window.SpeechRecognition || window.webkitSpeechRecognition
         : null;
-    if (!SpeechRecognition) {
-      setSupported(false);
-    }
+    if (!SpeechRecognition) setSupported(false);
   }, []);
 
   const toggleRecording = () => {
@@ -164,9 +199,7 @@ function VoiceNotes({ area }: { area: QuoteArea }) {
       setIsRecording(false);
       return;
     }
-
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
@@ -184,19 +217,11 @@ function VoiceNotes({ area }: { area: QuoteArea }) {
         }
       }
       if (finals.length > 0) {
-        updateArea(area.id, {
-          notes: existing + separator + finals.join(" "),
-        });
+        updateArea(area.id, { notes: existing + separator + finals.join(" ") });
       }
     };
-
-    recognition.onerror = () => {
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
 
     recognitionRef.current = recognition;
     recognition.start();
@@ -243,282 +268,471 @@ function VoiceNotes({ area }: { area: QuoteArea }) {
   );
 }
 
-function AreaForm({ area }: { area: QuoteArea }) {
+// --- Unit Items Panel ---
+
+function UnitItemsPanel({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
+  const [showAll, setShowAll] = useState(false);
+
+  const defaultItems = UNIT_ITEMS_BY_AREA_TYPE[area.areaType] || [];
+  const activeItems = Object.keys(area.unitItems).filter(
+    (k) => area.unitItems[k] > 0
+  );
+
+  // Show: default items for area type + any items that already have values
+  const visibleKeys = showAll
+    ? ALL_UNIT_ITEMS.map((u) => u.key)
+    : Array.from(new Set([...defaultItems, ...activeItems]));
+
+  const visibleItems = visibleKeys
+    .map((key) => ALL_UNIT_ITEMS.find((u) => u.key === key))
+    .filter(Boolean) as { key: string; label: string }[];
+
+  const hiddenCount = ALL_UNIT_ITEMS.length - visibleItems.length;
+
+  const setItem = (key: string, value: number) => {
+    updateArea(area.id, {
+      unitItems: { ...area.unitItems, [key]: value },
+    });
+  };
+
+  if (visibleItems.length === 0 && !showAll) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm">Unit Items</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => setShowAll(true)}
+          >
+            Show all items
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          No default items for this area type. Click &quot;Show all items&quot; to add.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Area Name */}
-      <div className="space-y-2">
-        <Label>Area Name</Label>
-        <Input
-          value={area.areaName}
-          onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
-          placeholder={`Area ${area.sortOrder}`}
-          className="font-medium"
-        />
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <Label className="text-sm">Unit Items</Label>
+        {!showAll && hiddenCount > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => setShowAll(true)}
+          >
+            +{hiddenCount} more items
+          </Button>
+        )}
+        {showAll && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => setShowAll(false)}
+          >
+            Show fewer
+          </Button>
+        )}
       </div>
-
-      {/* Floor Types */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">
-          Floor Types (sq ft)
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {FLOOR_TYPES.map((ft) => (
-            <div key={ft.key} className="space-y-1">
-              <Label className="text-xs">{ft.label}</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={(area[ft.key] as number) || ""}
-                onChange={(e) =>
-                  updateArea(area.id, {
-                    [ft.key]: parseInt(e.target.value) || 0,
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Unit-Based Items */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">
-          Unit-Based Items (count)
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {UNIT_TYPES.map((ut) => (
-            <div key={ut.key} className="space-y-1">
-              <div className="flex items-center gap-1">
-                <Label className="text-xs">{ut.label}</Label>
-                {ut.tooltip && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-[200px]">{ut.tooltip}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={(area[ut.key] as number) || ""}
-                onChange={(e) =>
-                  updateArea(area.id, {
-                    [ut.key]: parseInt(e.target.value) || 0,
-                  })
-                }
-                placeholder="0"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Photos */}
-      <PhotoUpload area={area} />
-
-      {/* Voice Notes */}
-      <VoiceNotes area={area} />
-
-      {/* Summary */}
-      <div className="flex items-center gap-4 text-sm text-muted-foreground pt-2 border-t">
-        <span>{area.totalSqft.toLocaleString()} sq ft</span>
-        <span>{Math.round(area.minsPerVisit)} min/visit</span>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {visibleItems.map((item) => (
+          <div key={item.key} className="space-y-1">
+            <Label className="text-xs">{item.label}</Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={area.unitItems[item.key] || ""}
+              onChange={(e) => setItem(item.key, parseInt(e.target.value) || 0)}
+              placeholder="0"
+              className="h-8"
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
+// --- Detail Panel (expandable under each row) ---
+
+function DetailPanel({ area }: { area: QuoteArea }) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+
+  return (
+    <div className="p-4 bg-muted/30 border-t space-y-5">
+      {/* Area Type */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Area Type</Label>
+          <Select
+            value={area.areaType}
+            onValueChange={(val) => updateArea(area.id, { areaType: val as AreaType })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AREA_TYPES.map((at) => (
+                <SelectItem key={at.value} value={at.value}>
+                  {at.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {area.floorType === "other" && (
+          <div className="space-y-2">
+            <Label>Custom Floor Type</Label>
+            <Input
+              value={area.floorTypeCustomLabel}
+              onChange={(e) =>
+                updateArea(area.id, { floorTypeCustomLabel: e.target.value })
+              }
+              placeholder="Describe floor type..."
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Unit Items */}
+      <UnitItemsPanel area={area} />
+
+      {/* Photos + Notes side by side on desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <PhotoUpload area={area} />
+        <VoiceNotes area={area} />
+      </div>
+    </div>
+  );
+}
+
+// --- Area Table Row ---
+
+function AreaRow({
+  area,
+  isExpanded,
+  onToggle,
+}: {
+  area: QuoteArea;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const removeArea = useQuoteStore((s) => s.removeArea);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleSqftChange = (val: string) => {
+    const sqft = parseInt(val) || 0;
+    updateArea(area.id, { sqft, sqftOverride: true });
+  };
+
+  const handleDimensionChange = (field: "lengthFt" | "widthFt", val: string) => {
+    const num = parseInt(val) || 0;
+    const other = field === "lengthFt" ? area.widthFt : area.lengthFt;
+    const sqft = num * other;
+    updateArea(area.id, {
+      [field]: num,
+      sqft,
+      sqftOverride: false,
+    });
+  };
+
+  const unitItemCount = Object.values(area.unitItems).reduce(
+    (sum, v) => sum + (v || 0),
+    0
+  );
+
+  return (
+    <>
+      <TableRow className={isExpanded ? "bg-muted/30 border-b-0" : ""}>
+        {/* Expand toggle */}
+        <TableCell className="w-8 px-1">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="p-1 rounded hover:bg-accent transition-colors"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        </TableCell>
+
+        {/* Floor Type */}
+        <TableCell className="min-w-[140px]">
+          <Select
+            value={area.floorType}
+            onValueChange={(val) => updateArea(area.id, { floorType: val as FloorType })}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FLOOR_TYPES_V3.map((ft) => (
+                <SelectItem key={ft.value} value={ft.value}>
+                  {ft.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+
+        {/* Area Name */}
+        <TableCell className="min-w-[130px]">
+          <Input
+            value={area.areaName}
+            onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
+            placeholder={`Area ${area.sortOrder}`}
+            className="h-8 text-xs"
+          />
+        </TableCell>
+
+        {/* L x W */}
+        <TableCell className="min-w-[70px]">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={area.lengthFt || ""}
+            onChange={(e) => handleDimensionChange("lengthFt", e.target.value)}
+            placeholder="L"
+            className="h-8 text-xs w-16"
+          />
+        </TableCell>
+        <TableCell className="min-w-[70px]">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={area.widthFt || ""}
+            onChange={(e) => handleDimensionChange("widthFt", e.target.value)}
+            placeholder="W"
+            className="h-8 text-xs w-16"
+          />
+        </TableCell>
+
+        {/* Sq Ft */}
+        <TableCell className="min-w-[80px]">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={area.sqft || ""}
+            onChange={(e) => handleSqftChange(e.target.value)}
+            placeholder="0"
+            className="h-8 text-xs w-20"
+          />
+        </TableCell>
+
+        {/* Qty */}
+        <TableCell className="min-w-[60px]">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={area.quantity || ""}
+            onChange={(e) =>
+              updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })
+            }
+            placeholder="1"
+            className="h-8 text-xs w-14"
+          />
+        </TableCell>
+
+        {/* Total Sq Ft */}
+        <TableCell className="min-w-[80px] text-right font-medium text-xs">
+          {area.sqftTotal > 0 ? area.sqftTotal.toLocaleString() : "—"}
+        </TableCell>
+
+        {/* Indicators */}
+        <TableCell className="min-w-[80px]">
+          <div className="flex items-center gap-1">
+            {unitItemCount > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0">
+                    {unitItemCount}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{unitItemCount} unit items</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {(area.photos?.length ?? 0) > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0">
+                    <Camera className="h-3 w-3" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{area.photos.length} photos</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {area.notes && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs px-1.5 py-0">
+                    <Info className="h-3 w-3" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Has notes</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TableCell>
+
+        {/* Delete */}
+        <TableCell className="w-8 px-1">
+          {showDeleteConfirm ? (
+            <div className="flex items-center gap-1">
+              <Button variant="destructive" size="sm" className="h-6 text-xs px-2" onClick={() => { removeArea(area.id); setShowDeleteConfirm(false); }}>
+                Yes
+              </Button>
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => setShowDeleteConfirm(false)}>
+                No
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </TableCell>
+      </TableRow>
+
+      {/* Detail panel */}
+      {isExpanded && (
+        <tr>
+          <td colSpan={10}>
+            <DetailPanel area={area} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// --- Main AreasStep ---
+
 export function AreasStep() {
   const quote = useQuoteStore((s) => s.currentQuote);
   const addArea = useQuoteStore((s) => s.addArea);
-  const removeArea = useQuoteStore((s) => s.removeArea);
-  const [currentAreaIndex, setCurrentAreaIndex] = useState(0);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  // If AI Summary sent the user here targeting a specific area, jump to it
+  // If navigating back from AI Summary with a target area
   useEffect(() => {
     const target = sessionStorage.getItem("janpro-goto-area");
-    if (target !== null) {
+    if (target !== null && quote) {
       sessionStorage.removeItem("janpro-goto-area");
       const idx = parseInt(target, 10);
-      if (!isNaN(idx)) {
-        setCurrentAreaIndex(idx);
+      if (!isNaN(idx) && quote.areas[idx]) {
+        setExpandedIds(new Set([quote.areas[idx].id]));
       }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!quote) return null;
 
-  const areas = quote.areas;
-  const total = areas.length;
-  const area = areas[currentAreaIndex];
-
-  // Safety: clamp index if areas were removed
-  if (currentAreaIndex >= total && total > 0) {
-    setCurrentAreaIndex(total - 1);
-    return null;
-  }
-
-  if (!area) return null;
-
-  const goTo = (index: number) => {
-    setShowDeleteConfirm(false);
-    setCurrentAreaIndex(index);
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const handleAddArea = () => {
-    addArea();
-    // Navigate to the newly added area
-    setCurrentAreaIndex(total); // total is current length, new area will be at that index
-    setShowDeleteConfirm(false);
-  };
-
-  const handleDeleteArea = () => {
-    if (total <= 1) return;
-    removeArea(area.id);
-    setShowDeleteConfirm(false);
-    if (currentAreaIndex >= total - 1) {
-      setCurrentAreaIndex(Math.max(0, total - 2));
+    const newId = addArea();
+    if (newId) {
+      setExpandedIds((prev) => new Set(prev).add(newId));
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold text-janpro-navy mb-1">
           Cleaning Areas
         </h2>
         <p className="text-sm text-muted-foreground">
-          Define each area of the facility with flooring types, fixtures, photos, and notes.
+          Each area is one measured section of one floor type. Add areas as you walk the facility.
         </p>
       </div>
 
-      {/* Area Navigation Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={currentAreaIndex === 0}
-            onClick={() => goTo(currentAreaIndex - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+      {quote.areas.length > 0 && <AggregatesBar areas={quote.areas} />}
 
-          <div className="flex items-center gap-1.5 px-2">
-            {areas.map((a, i) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => goTo(i)}
-                className={`w-8 h-8 rounded-full text-xs font-medium transition-colors ${
-                  i === currentAreaIndex
-                    ? "bg-janpro-navy text-white"
-                    : "bg-muted text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={currentAreaIndex === total - 1}
-            onClick={() => goTo(currentAreaIndex + 1)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+      {quote.areas.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="w-8 px-1" />
+                <TableHead className="text-xs">Floor Type</TableHead>
+                <TableHead className="text-xs">Name</TableHead>
+                <TableHead className="text-xs">L (ft)</TableHead>
+                <TableHead className="text-xs">W (ft)</TableHead>
+                <TableHead className="text-xs">Sq Ft</TableHead>
+                <TableHead className="text-xs">Qty</TableHead>
+                <TableHead className="text-xs text-right">Total</TableHead>
+                <TableHead className="text-xs" />
+                <TableHead className="w-8 px-1" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {quote.areas.map((area) => (
+                <AreaRow
+                  key={area.id}
+                  area={area}
+                  isExpanded={expandedIds.has(area.id)}
+                  onToggle={() => toggleExpand(area.id)}
+                />
+              ))}
+            </TableBody>
+          </Table>
         </div>
-
-        <span className="text-sm text-muted-foreground font-medium">
-          Area {currentAreaIndex + 1} of {total}
-        </span>
-      </div>
-
-      {/* Area Form Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <AreaForm area={area} />
-        </CardContent>
-      </Card>
-
-      {/* Bottom Actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          {total > 1 && (
-            <>
-              {showDeleteConfirm ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-destructive">Delete this area?</span>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDeleteArea}
-                  >
-                    Yes
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(false)}
-                  >
-                    No
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Remove Area
-                </Button>
-              )}
-            </>
-          )}
+      ) : (
+        <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+          <p className="mb-2">No areas yet.</p>
+          <p className="text-sm">Click below to add your first area.</p>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAddArea}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Area
-          </Button>
-
-          {currentAreaIndex < total - 1 && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => goTo(currentAreaIndex + 1)}
-              className="bg-janpro-navy hover:bg-janpro-navy/90"
-            >
-              Next Area
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          )}
-        </div>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleAddArea}
+        className="w-full border-dashed h-12"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add Area
+      </Button>
     </div>
   );
 }

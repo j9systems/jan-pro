@@ -20,11 +20,9 @@ import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
 import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
+import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES } from "@/lib/constants";
 
-// Placeholder suggestions to demonstrate the AI Summary UI.
-// Once wired up, these will be generated dynamically by cross-referencing
-// photos, voice notes, and numeric inputs for each area.
+// Placeholder suggestions demonstrating what the AI will do.
 interface AISuggestion {
   id: string;
   type: "warning" | "info" | "success";
@@ -42,9 +40,9 @@ const PLACEHOLDER_SUGGESTIONS: AISuggestion[] = [
     icon: "ruler",
     area: "Main Lobby",
     areaIndex: 0,
-    message: "Square footage may be incorrect",
+    message: "Dimensions may be incorrect",
     detail:
-      'The photo shows a small reception area, but 3,000 sq ft of carpet was entered. Did you mean 300 sq ft?',
+      'The photo shows a small reception area, but dimensions calculate to 3,000 sq ft. Did you mean 30 x 10 instead of 300 x 10?',
   },
   {
     id: "2",
@@ -52,9 +50,9 @@ const PLACEHOLDER_SUGGESTIONS: AISuggestion[] = [
     icon: "camera",
     area: "Break Room",
     areaIndex: 1,
-    message: "Flooring type mismatch",
+    message: "Floor type mismatch",
     detail:
-      "The uploaded photo appears to show VCT flooring, but only ceramic was entered for this area.",
+      "The uploaded photo appears to show VCT flooring, but this area is tagged as Carpet.",
   },
   {
     id: "3",
@@ -64,7 +62,7 @@ const PLACEHOLDER_SUGGESTIONS: AISuggestion[] = [
     areaIndex: 2,
     message: "Voice note mentions additional fixtures",
     detail:
-      'Your voice note says "there are 4 sinks and 2 hand dryers" but SUTM count is set to 0. Consider updating.',
+      'Your voice note says "there are 4 sinks and 2 hand dryers" but no unit items are entered for this area.',
   },
   {
     id: "4",
@@ -86,8 +84,7 @@ const ICON_MAP = {
 };
 
 const TYPE_STYLES = {
-  warning:
-    "border-amber-200 bg-amber-50/50",
+  warning: "border-amber-200 bg-amber-50/50",
   info: "border-blue-200 bg-blue-50/50",
   success: "border-emerald-200 bg-emerald-50/50",
 };
@@ -100,17 +97,12 @@ const TYPE_ICON_STYLES = {
 
 function AISummaryCard() {
   const setStep = useQuoteStore((s) => s.setStep);
-  // In a real implementation, this would call an AI endpoint and
-  // populate suggestions dynamically. For now, show placeholder UI.
   const suggestions = PLACEHOLDER_SUGGESTIONS;
   const warningCount = suggestions.filter((s) => s.type === "warning").length;
   const infoCount = suggestions.filter((s) => s.type === "info").length;
   const successCount = suggestions.filter((s) => s.type === "success").length;
 
   const handleGoToArea = (areaIndex: number) => {
-    // Navigate back to the Areas step (step index 2)
-    // The areas step will need to pick up the target area index.
-    // For now, store in sessionStorage so areas-step can read it.
     sessionStorage.setItem("janpro-goto-area", String(areaIndex));
     setStep(2);
   };
@@ -159,9 +151,7 @@ function AISummaryCard() {
               key={s.id}
               className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_STYLES[s.type]}`}
             >
-              <div
-                className={`p-1.5 rounded-md shrink-0 mt-0.5 ${TYPE_ICON_STYLES[s.type]}`}
-              >
+              <div className={`p-1.5 rounded-md shrink-0 mt-0.5 ${TYPE_ICON_STYLES[s.type]}`}>
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -217,6 +207,11 @@ export function SummaryStep() {
     .reduce((sum, s) => sum + calculateSpecialServiceCost(s), 0);
 
   const belowMinimum = quote.quotedMonthly > 0 && quote.quotedMonthly < regionalMinimum;
+
+  const getFloorLabel = (val: string) =>
+    FLOOR_TYPES_V3.find((f) => f.value === val)?.label ?? val;
+  const getAreaTypeLabel = (val: string) =>
+    AREA_TYPES.find((a) => a.value === val)?.label ?? val;
 
   return (
     <div className="space-y-6">
@@ -274,7 +269,9 @@ export function SummaryStep() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Area Breakdown</CardTitle>
+              <CardTitle className="text-base">
+                Area Breakdown ({quote.areas.length} areas)
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto">
@@ -282,7 +279,9 @@ export function SummaryStep() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 font-medium">Area</th>
-                      <th className="pb-2 font-medium text-right">Sq Ft</th>
+                      <th className="pb-2 font-medium">Floor</th>
+                      <th className="pb-2 font-medium text-right">Qty</th>
+                      <th className="pb-2 font-medium text-right">Total Sq Ft</th>
                       <th className="pb-2 font-medium text-right">Min/Visit</th>
                       <th className="pb-2 font-medium text-right">Monthly</th>
                     </tr>
@@ -291,10 +290,21 @@ export function SummaryStep() {
                     {quote.areas.map((area) => (
                       <tr key={area.id} className="border-b last:border-0">
                         <td className="py-2">
-                          {area.areaName || `Area ${area.sortOrder}`}
+                          <div>
+                            {area.areaName || `Area ${area.sortOrder}`}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({getAreaTypeLabel(area.areaType)})
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 text-xs">
+                          {getFloorLabel(area.floorType)}
                         </td>
                         <td className="py-2 text-right">
-                          {area.totalSqft.toLocaleString()}
+                          {area.quantity > 1 ? `${area.quantity}x` : ""}
+                        </td>
+                        <td className="py-2 text-right">
+                          {area.sqftTotal.toLocaleString()}
                         </td>
                         <td className="py-2 text-right">
                           {Math.round(area.minsPerVisit)}

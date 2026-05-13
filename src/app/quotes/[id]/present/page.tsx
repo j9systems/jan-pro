@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, VISITS_PER_WEEK_OPTIONS } from "@/lib/constants";
+import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3 } from "@/lib/constants";
 import { calculatePorterCost } from "@/lib/calculator";
 
 export default function PresentPage() {
@@ -113,30 +113,40 @@ export default function PresentPage() {
           <h2 className="text-lg font-semibold text-janpro-navy mb-4">
             Area Breakdown
           </h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="pb-2 font-medium">Area</th>
-                <th className="pb-2 font-medium text-right">Square Feet</th>
-                <th className="pb-2 font-medium text-right">Min/Visit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quote.areas.map((area) => (
-                <tr key={area.id} className="border-b last:border-0">
-                  <td className="py-3">
-                    {area.areaName || `Area ${area.sortOrder}`}
-                  </td>
-                  <td className="py-3 text-right">
-                    {area.totalSqft.toLocaleString()}
-                  </td>
-                  <td className="py-3 text-right">
-                    {Math.round(area.minsPerVisit)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="pb-2 font-medium">Area</th>
+                  <th className="pb-2 font-medium">Floor Type</th>
+                  <th className="pb-2 font-medium text-right">Qty</th>
+                  <th className="pb-2 font-medium text-right">Square Feet</th>
+                  <th className="pb-2 font-medium text-right">Min/Visit</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {quote.areas.map((area) => (
+                  <tr key={area.id} className="border-b last:border-0">
+                    <td className="py-3">
+                      {area.areaName || `Area ${area.sortOrder}`}
+                    </td>
+                    <td className="py-3 text-xs">
+                      {FLOOR_TYPES_V3.find((f) => f.value === area.floorType)?.label ?? area.floorType}
+                    </td>
+                    <td className="py-3 text-right">
+                      {area.quantity > 1 ? area.quantity : ""}
+                    </td>
+                    <td className="py-3 text-right">
+                      {area.sqftTotal.toLocaleString()}
+                    </td>
+                    <td className="py-3 text-right">
+                      {Math.round(area.minsPerVisit)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

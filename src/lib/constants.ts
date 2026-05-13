@@ -1,3 +1,5 @@
+import type { FloorType, AreaType } from "./types";
+
 export const HOURLY_RATE = 31;
 export const INITIAL_CLEAN_RATE = 50;
 export const PORTER_RATE = 30;
@@ -32,22 +34,33 @@ export const CARPET_RUN_RATES: Record<number, { lo: number; hi: number }> = {
   7: { lo: 3600, hi: 4200 },
 };
 
+// Floor rate lookup keyed by FloorType value
 export const FLOOR_RATES_SQFT_PER_HR: Record<string, number> = {
   carpet: 2600,
-  vct: 2500,
-  tile: 2500,
-  ceramic: 2500,
-  wood: 2500,
-  concrete: 2500,
-  hard_surface_other: 2500,
-  linoleum: 3500,
+  hard_floor_vct: 2500,
+  hard_floor_tile: 2500,
+  hard_floor_ceramic: 2500,
+  hard_floor_wood: 2500,
+  hard_floor_concrete: 2500,
+  terrazzo: 2500,
+  rubber: 2500,
+  other: 2500,
 };
 
 export const UNIT_RATES_MINS_PER_UNIT: Record<string, number> = {
-  shower: 10,
-  blind: 10,
-  sutm: 2.5,
-  picture_frame: 3,
+  toilets: 2.5,
+  urinals: 2.5,
+  mirrors: 1,
+  sinks: 2,
+  small_sudums: 2.5,
+  large_sudums: 5,
+  partitions: 1.5,
+  blinds: 10,
+  windows: 3,
+  whiteboards: 2,
+  picture_frames: 3,
+  refrigerators: 10,
+  microwaves: 5,
 };
 
 export const INITIAL_CLEAN_RATES: Record<string, number> = {
@@ -72,6 +85,74 @@ export const SPECIAL_SERVICE_RATES: Record<string, number> = {
   grout_light: 0.52,
   grout_heavy: 0.81,
 };
+
+// --- V3 Floor Types ---
+
+export const FLOOR_TYPES_V3: { value: FloorType; label: string }[] = [
+  { value: "carpet", label: "Carpet" },
+  { value: "hard_floor_vct", label: "Hard Floor — VCT" },
+  { value: "hard_floor_tile", label: "Hard Floor — Tile" },
+  { value: "hard_floor_ceramic", label: "Hard Floor — Ceramic" },
+  { value: "hard_floor_wood", label: "Hard Floor — Wood" },
+  { value: "hard_floor_concrete", label: "Hard Floor — Concrete" },
+  { value: "terrazzo", label: "Terrazzo" },
+  { value: "rubber", label: "Rubber" },
+  { value: "other", label: "Other" },
+];
+
+// --- V3 Area Types ---
+
+export const AREA_TYPES: { value: AreaType; label: string }[] = [
+  { value: "office", label: "Office" },
+  { value: "conference_room", label: "Conference Room" },
+  { value: "hallway_corridor", label: "Hallway / Corridor" },
+  { value: "lobby_entry", label: "Lobby / Entry" },
+  { value: "restroom", label: "Restroom" },
+  { value: "classroom", label: "Classroom" },
+  { value: "medical_exam", label: "Medical Exam Room" },
+  { value: "production_plant", label: "Production / Plant" },
+  { value: "break_room_kitchen", label: "Break Room / Kitchen" },
+  { value: "stairwell", label: "Stairwell" },
+  { value: "storage", label: "Storage" },
+  { value: "common_area", label: "Common Area" },
+  { value: "other", label: "Other" },
+];
+
+// --- V3 Unit Items ---
+
+export const ALL_UNIT_ITEMS: { key: string; label: string }[] = [
+  { key: "toilets", label: "Toilets" },
+  { key: "urinals", label: "Urinals" },
+  { key: "mirrors", label: "Mirrors" },
+  { key: "sinks", label: "Sinks" },
+  { key: "small_sudums", label: "Small Sudums" },
+  { key: "large_sudums", label: "Large Sudums (Bradley)" },
+  { key: "partitions", label: "Partitions" },
+  { key: "blinds", label: "Blinds" },
+  { key: "windows", label: "Windows" },
+  { key: "whiteboards", label: "Whiteboards" },
+  { key: "picture_frames", label: "Picture Frames" },
+  { key: "refrigerators", label: "Refrigerators" },
+  { key: "microwaves", label: "Microwaves" },
+];
+
+export const UNIT_ITEMS_BY_AREA_TYPE: Record<AreaType, string[]> = {
+  restroom: ["toilets", "urinals", "mirrors", "sinks", "small_sudums", "large_sudums", "partitions"],
+  office: ["blinds", "windows", "whiteboards", "picture_frames"],
+  conference_room: ["blinds", "windows", "whiteboards", "picture_frames"],
+  classroom: ["blinds", "windows", "whiteboards", "picture_frames"],
+  hallway_corridor: ["windows", "picture_frames"],
+  lobby_entry: ["windows", "mirrors", "picture_frames"],
+  medical_exam: ["sinks", "mirrors", "blinds", "windows"],
+  production_plant: ["sinks"],
+  break_room_kitchen: ["refrigerators", "microwaves", "sinks"],
+  stairwell: [],
+  storage: [],
+  common_area: ["blinds", "windows", "picture_frames"],
+  other: [],
+};
+
+// --- Existing ---
 
 export const FACILITY_TYPES = [
   "Office",

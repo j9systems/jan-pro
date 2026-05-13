@@ -9,6 +9,8 @@ import {
   REGIONS,
   VISITS_PER_WEEK_OPTIONS,
   SPECIAL_SERVICES_CATALOG,
+  FLOOR_TYPES_V3,
+  AREA_TYPES,
 } from "@/lib/constants";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
 
@@ -22,6 +24,11 @@ export function ReviewStep() {
   const visitsLabel =
     VISITS_PER_WEEK_OPTIONS.find((v) => v.value === quote.visitsPerWeek)
       ?.label ?? `${quote.visitsPerWeek}x`;
+
+  const getFloorLabel = (val: string) =>
+    FLOOR_TYPES_V3.find((f) => f.value === val)?.label ?? val;
+  const getAreaTypeLabel = (val: string) =>
+    AREA_TYPES.find((a) => a.value === val)?.label ?? val;
 
   return (
     <div className="space-y-6">
@@ -106,50 +113,67 @@ export function ReviewStep() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="pb-2 font-medium">Area</th>
-                  <th className="pb-2 font-medium text-right">Sq Ft</th>
-                  <th className="pb-2 font-medium text-right">Min/Visit</th>
-                  <th className="pb-2 font-medium text-right">Monthly</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.areas.map((area) => (
-                  <tr key={area.id} className="border-b last:border-0">
-                    <td className="py-2">
-                      {area.areaName || `Area ${area.sortOrder}`}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="pb-2 font-medium">Area</th>
+                    <th className="pb-2 font-medium">Floor Type</th>
+                    <th className="pb-2 font-medium">Type</th>
+                    <th className="pb-2 font-medium text-right">Qty</th>
+                    <th className="pb-2 font-medium text-right">Sq Ft</th>
+                    <th className="pb-2 font-medium text-right">Min/Visit</th>
+                    <th className="pb-2 font-medium text-right">Monthly</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quote.areas.map((area) => (
+                    <tr key={area.id} className="border-b last:border-0">
+                      <td className="py-2">
+                        {area.areaName || `Area ${area.sortOrder}`}
+                      </td>
+                      <td className="py-2 text-xs">
+                        {getFloorLabel(area.floorType)}
+                      </td>
+                      <td className="py-2 text-xs">
+                        {getAreaTypeLabel(area.areaType)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {area.quantity > 1 ? area.quantity : ""}
+                      </td>
+                      <td className="py-2 text-right">
+                        {area.sqftTotal.toLocaleString()}
+                      </td>
+                      <td className="py-2 text-right">
+                        {Math.round(area.minsPerVisit)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {formatCurrency(area.costPerMonth)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="font-semibold">
+                    <td className="py-2">Total</td>
+                    <td className="py-2" />
+                    <td className="py-2" />
+                    <td className="py-2" />
+                    <td className="py-2 text-right">
+                      {quote.totalSqft.toLocaleString()}
                     </td>
                     <td className="py-2 text-right">
-                      {area.totalSqft.toLocaleString()}
+                      {Math.round(
+                        quote.areas.reduce((s, a) => s + a.minsPerVisit, 0)
+                      )}
                     </td>
                     <td className="py-2 text-right">
-                      {Math.round(area.minsPerVisit)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {formatCurrency(area.costPerMonth)}
+                      {formatCurrency(
+                        quote.areas.reduce((s, a) => s + a.costPerMonth, 0)
+                      )}
                     </td>
                   </tr>
-                ))}
-                <tr className="font-semibold">
-                  <td className="py-2">Total</td>
-                  <td className="py-2 text-right">
-                    {quote.totalSqft.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right">
-                    {Math.round(
-                      quote.areas.reduce((s, a) => s + a.minsPerVisit, 0)
-                    )}
-                  </td>
-                  <td className="py-2 text-right">
-                    {formatCurrency(
-                      quote.areas.reduce((s, a) => s + a.costPerMonth, 0)
-                    )}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
 

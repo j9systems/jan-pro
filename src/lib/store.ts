@@ -9,21 +9,21 @@ function createBlankArea(sortOrder: number): QuoteArea {
     id: generateId(),
     sortOrder,
     areaName: "",
-    carpetSqft: 0,
-    vctSqft: 0,
-    tileSqft: 0,
-    ceramicSqft: 0,
-    woodSqft: 0,
-    concreteSqft: 0,
-    hardSurfaceOtherSqft: 0,
-    linoleumSqft: 0,
-    showerCount: 0,
-    blindCount: 0,
-    sutmCount: 0,
-    pictureFrames: 0,
+    floorType: "carpet",
+    floorTypeCustomLabel: "",
+    areaType: "office",
+    lengthFt: 0,
+    widthFt: 0,
+    sqft: 0,
+    sqftOverride: false,
+    quantity: 1,
+    sqftTotal: 0,
+    unitItems: {},
     photos: [],
+    videos: [],
+    voiceMemos: [],
     notes: "",
-    totalSqft: 0,
+    aiFlags: [],
     minsPerVisit: 0,
     costPerMonth: 0,
   };
@@ -52,8 +52,7 @@ function createBlankQuote(): Quote {
     initialClean: false,
     specialEquipment: false,
     restrictedClean: false,
-    numAreas: 0,
-    areas: [createBlankArea(1)],
+    areas: [],
     porters: [],
     initialCleanData: {
       enabled: false,
@@ -87,10 +86,9 @@ interface QuoteStore {
   // Actions
   initNewQuote: () => void;
   updateQuote: (partial: Partial<Quote>) => void;
-  addArea: () => void;
+  addArea: () => string;
   updateArea: (id: string, partial: Partial<QuoteArea>) => void;
   removeArea: (id: string) => void;
-  setAreasCount: (count: number) => void;
   addPorter: () => void;
   removePorter: (porterNumber: 1 | 2) => void;
   updatePorter: (porterNumber: 1 | 2, partial: Partial<Porter>) => void;
@@ -126,7 +124,7 @@ export const useQuoteStore = create<QuoteStore>()(
 
       addArea: () => {
         const { currentQuote } = get();
-        if (!currentQuote) return;
+        if (!currentQuote) return "";
         const newArea = createBlankArea(currentQuote.areas.length + 1);
         const updated = {
           ...currentQuote,
@@ -135,6 +133,7 @@ export const useQuoteStore = create<QuoteStore>()(
         };
         const calcs = calculateQuote(updated);
         set({ currentQuote: { ...updated, ...calcs } as Quote });
+        return newArea.id;
       },
 
       updateArea: (id, partial) => {
@@ -159,30 +158,6 @@ export const useQuoteStore = create<QuoteStore>()(
           areas: currentQuote.areas
             .filter((a) => a.id !== id)
             .map((a, i) => ({ ...a, sortOrder: i + 1 })),
-          updatedAt: new Date().toISOString(),
-        };
-        updated.numAreas = updated.areas.length;
-        const calcs = calculateQuote(updated);
-        set({ currentQuote: { ...updated, ...calcs } as Quote });
-      },
-
-      setAreasCount: (count) => {
-        const { currentQuote } = get();
-        if (!currentQuote) return;
-        const current = currentQuote.areas.length;
-        let areas = [...currentQuote.areas];
-        if (count > current) {
-          for (let i = current; i < count; i++) {
-            areas.push(createBlankArea(i + 1));
-          }
-        } else if (count < current) {
-          areas = areas.slice(0, count);
-        }
-        areas = areas.map((a, i) => ({ ...a, sortOrder: i + 1 }));
-        const updated = {
-          ...currentQuote,
-          areas,
-          numAreas: count,
           updatedAt: new Date().toISOString(),
         };
         const calcs = calculateQuote(updated);
