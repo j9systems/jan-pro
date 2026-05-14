@@ -71,9 +71,6 @@ function RecordingBar({
 }: {
   onAreasAdded: (ids: string[]) => void;
 }) {
-  const addAreaFromAI = useQuoteStore((s) => s.addAreaFromAI);
-  const updateArea = useQuoteStore((s) => s.updateArea);
-  const appendTranscript = useQuoteStore((s) => s.appendTranscript);
   const clearTranscript = useQuoteStore((s) => s.clearTranscript);
 
   const [state, setState] = useState<RecordingState>("idle");
@@ -81,18 +78,15 @@ function RecordingBar({
   const [analyzing, setAnalyzing] = useState(false);
   const [supported, setSupported] = useState(true);
 
-  // Use refs to avoid stale closures in speech recognition callbacks
+  // Refs to avoid stale closures in callbacks and intervals
   const stateRef = useRef<RecordingState>("idle");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingTextRef = useRef("");
   const lastSentRef = useRef("");
+  const analyzingRef = useRef(false);
 
-  // Keep stateRef in sync
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   useEffect(() => {
     const SR = typeof window !== "undefined"
@@ -101,21 +95,27 @@ function RecordingBar({
     if (!SR) setSupported(false);
   }, []);
 
-  const analyzeTranscript = useCallback(async () => {
-    // Read fresh quote from store to avoid stale closure
-    const currentQuote = useQuoteStore.getState().currentQuote;
-    if (!currentQuote) return;
-    const fullTranscript = (currentQuote.recordingTranscript + " " + pendingTextRef.current).trim();
-    if (!fullTranscript || fullTranscript === lastSentRef.current) return;
-    lastSentRef.current = fullTranscript;
+  // Core analysis function — always reads fresh state from store
+  const runAnalysis = useCallback(async () => {
+    // Prevent overlapping analysis calls
+    if (analyzingRef.current) return;
 
+    const store = useQuoteStore.getState();
+    const currentQuote = store.currentQuote;
+    if (!currentQuote) return;
+
+    const transcript = currentQuote.recordingTranscript.trim();
+    if (!transcript || transcript === lastSentRef.current) return;
+    lastSentRef.current = transcript;
+
+    analyzingRef.current = true;
     setAnalyzing(true);
     try {
       const res = await fetch("/api/analyze-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          transcript: fullTranscript,
+          transcript,
           existingAreas: currentQuote.areas.map((a) => ({
             areaName: a.areaName,
             sortOrder: a.sortOrder,
@@ -131,12 +131,12 @@ function RecordingBar({
       const data = await res.json();
       if (!data.actions || !Array.isArray(data.actions)) return;
 
-      // Re-read quote for latest areas (may have changed during fetch)
+      // Re-read for latest areas (may have changed during fetch)
       const freshQuote = useQuoteStore.getState().currentQuote;
       const newIds: string[] = [];
       for (const action of data.actions) {
         if (action.type === "add_area" && action.area) {
-          const id = addAreaFromAI(action.area);
+          const id = store.addAreaFromAI(action.area);
           if (id) newIds.push(id);
         } else if (action.type === "update_area" && typeof action.areaIndex === "number" && freshQuote) {
           const targetArea = freshQuote.areas[action.areaIndex];
@@ -145,7 +145,7 @@ function RecordingBar({
             for (const key of Object.keys(action.fields)) {
               aiGenerated[key] = true;
             }
-            updateArea(targetArea.id, { ...action.fields, aiGenerated });
+            store.updateArea(targetArea.id, { ...action.fields, aiGenerated });
           }
         }
       }
@@ -153,9 +153,14 @@ function RecordingBar({
     } catch (e) {
       console.error("Analysis error:", e);
     } finally {
+      analyzingRef.current = false;
       setAnalyzing(false);
     }
-  }, [addAreaFromAI, updateArea, onAreasAdded]);
+  }, [onAreasAdded]);
+
+  // Keep a ref to runAnalysis so the interval always calls the latest version
+  const runAnalysisRef = useRef(runAnalysis);
+  useEffect(() => { runAnalysisRef.current = runAnalysis; }, [runAnalysis]);
 
   const startRecognition = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -172,14 +177,15 @@ function RecordingBar({
         if (event.results[i].isFinal) {
           const text = event.results[i][0].transcript.trim();
           if (text) {
-            pendingTextRef.current += (pendingTextRef.current ? " " : "") + text;
-            appendTranscript(text);
+            // Only write to store — single source of truth for transcript
+            useQuoteStore.getState().appendTranscript(text);
           }
         } else {
           interim += event.results[i][0].transcript;
         }
       }
-      setLiveText(interim || pendingTextRef.current.slice(-120));
+      const storeTranscript = useQuoteStore.getState().currentQuote?.recordingTranscript || "";
+      setLiveText(interim || storeTranscript.slice(-120));
     };
 
     recognition.onerror = (e: Event) => {
@@ -187,7 +193,6 @@ function RecordingBar({
     };
 
     recognition.onend = () => {
-      // Auto-restart ONLY if still actively recording (use ref, not state)
       if (stateRef.current === "recording") {
         try {
           recognition.start();
@@ -199,15 +204,22 @@ function RecordingBar({
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [appendTranscript]);
+  }, []);
 
   const stopRecognition = () => {
     if (recognitionRef.current) {
-      // Remove onend handler to prevent auto-restart race
       recognitionRef.current.onend = null;
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
+  };
+
+  const startInterval = () => {
+    clearInterval(intervalRef.current!);
+    // Use ref so interval always calls latest analysis function
+    intervalRef.current = setInterval(() => {
+      runAnalysisRef.current();
+    }, 15000);
   };
 
   const clearAnalysisInterval = () => {
@@ -219,37 +231,34 @@ function RecordingBar({
 
   const handleStart = () => {
     clearTranscript();
-    pendingTextRef.current = "";
     lastSentRef.current = "";
     setLiveText("");
     setState("recording");
     startRecognition();
-
-    intervalRef.current = setInterval(() => {
-      analyzeTranscript();
-    }, 15000);
+    startInterval();
   };
 
   const handlePause = () => {
     setState("paused");
     stopRecognition();
-    clearAnalysisInterval();
+    // Keep the interval running so analysis continues on pause
+    // (user may have just spoken and paused — we still want to analyze)
   };
 
   const handleResume = () => {
     setState("recording");
     startRecognition();
-    intervalRef.current = setInterval(() => {
-      analyzeTranscript();
-    }, 15000);
+    // Restart interval to reset the 15s window from now
+    clearAnalysisInterval();
+    startInterval();
   };
 
   const handleStop = () => {
     setState("idle");
     stopRecognition();
     clearAnalysisInterval();
-    // Fire final analysis
-    analyzeTranscript();
+    // Fire final analysis for any remaining text
+    runAnalysisRef.current();
     setLiveText("");
   };
 
