@@ -25,6 +25,7 @@ function createBlankArea(sortOrder: number): QuoteArea {
     notes: "",
     aiFlags: [],
     aiGenerated: {},
+    aiCitations: {},
     minsPerVisit: 0,
     costPerMonth: 0,
   };
@@ -89,7 +90,7 @@ interface QuoteStore {
   initNewQuote: () => void;
   updateQuote: (partial: Partial<Quote>) => void;
   addArea: () => string;
-  addAreaFromAI: (data: Partial<QuoteArea>) => string;
+  addAreaFromAI: (data: Partial<QuoteArea>, citations?: Record<string, string>) => string;
   updateArea: (id: string, partial: Partial<QuoteArea>) => void;
   removeArea: (id: string) => void;
   appendTranscript: (text: string) => void;
@@ -141,16 +142,14 @@ export const useQuoteStore = create<QuoteStore>()(
         return newArea.id;
       },
 
-      addAreaFromAI: (data) => {
+      addAreaFromAI: (data, citations) => {
         const { currentQuote } = get();
         if (!currentQuote) return "";
         const blank = createBlankArea(currentQuote.areas.length + 1);
-        // Mark all provided fields as AI-generated
         const aiGenerated: Record<string, boolean> = {};
         for (const key of Object.keys(data)) {
-          if (key !== "id" && key !== "sortOrder" && key !== "aiGenerated") {
+          if (key !== "id" && key !== "sortOrder" && key !== "aiGenerated" && key !== "aiCitations") {
             if (key === "unitItems" && data.unitItems) {
-              // Mark each individual unit item
               for (const itemKey of Object.keys(data.unitItems)) {
                 if (data.unitItems[itemKey] > 0) {
                   aiGenerated[`unitItems.${itemKey}`] = true;
@@ -161,7 +160,8 @@ export const useQuoteStore = create<QuoteStore>()(
             }
           }
         }
-        const newArea: QuoteArea = { ...blank, ...data, aiGenerated };
+        const aiCitations = citations || {};
+        const newArea: QuoteArea = { ...blank, ...data, aiGenerated, aiCitations };
         const updated = {
           ...currentQuote,
           areas: [...currentQuote.areas, newArea],

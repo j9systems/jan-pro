@@ -40,6 +40,7 @@ import {
   Square,
   Pause,
   Play,
+  FileText,
 } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import {
@@ -49,6 +50,32 @@ import {
   UNIT_ITEMS_BY_AREA_TYPE,
 } from "@/lib/constants";
 import type { QuoteArea, FloorType, AreaType } from "@/lib/types";
+
+// --- AI Citation Tooltip ---
+
+function AiCitation({ area, field }: { area: QuoteArea; field: string }) {
+  const citation = area.aiCitations?.[field];
+  if (!area.aiGenerated?.[field] || !citation) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors shrink-0"
+        >
+          <Info className="h-2.5 w-2.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[250px]">
+        <p className="text-xs">
+          <span className="font-medium">AI heard:</span>{" "}
+          <span className="italic">&ldquo;{citation}&rdquo;</span>
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 // --- Helper: orange ring class for AI-generated fields ---
 
@@ -74,7 +101,6 @@ function RecordingBar({
   const clearTranscript = useQuoteStore((s) => s.clearTranscript);
 
   const [state, setState] = useState<RecordingState>("idle");
-  const [liveText, setLiveText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [supported, setSupported] = useState(true);
 
@@ -136,24 +162,32 @@ function RecordingBar({
       const newIds: string[] = [];
       for (const action of data.actions) {
         if (action.type === "add_area" && action.area) {
-          const id = store.addAreaFromAI(action.area);
+          const id = store.addAreaFromAI(action.area, action.citations || {});
           if (id) newIds.push(id);
         } else if (action.type === "update_area" && typeof action.areaIndex === "number" && freshQuote) {
           const targetArea = freshQuote.areas[action.areaIndex];
           if (targetArea && action.fields) {
             const aiGenerated = { ...(targetArea.aiGenerated || {}) };
+            const aiCitations = { ...(targetArea.aiCitations || {}) };
+            const actionCitations = action.citations || {};
             for (const key of Object.keys(action.fields)) {
               if (key === "unitItems" && action.fields.unitItems) {
                 for (const itemKey of Object.keys(action.fields.unitItems)) {
                   if (action.fields.unitItems[itemKey] > 0) {
                     aiGenerated[`unitItems.${itemKey}`] = true;
+                    if (actionCitations[`unitItems.${itemKey}`]) {
+                      aiCitations[`unitItems.${itemKey}`] = actionCitations[`unitItems.${itemKey}`];
+                    }
                   }
                 }
               } else {
                 aiGenerated[key] = true;
+                if (actionCitations[key]) {
+                  aiCitations[key] = actionCitations[key];
+                }
               }
             }
-            store.updateArea(targetArea.id, { ...action.fields, aiGenerated });
+            store.updateArea(targetArea.id, { ...action.fields, aiGenerated, aiCitations });
           }
         }
       }
@@ -180,20 +214,14 @@ function RecordingBar({
     recognition.lang = "en-US";
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = "";
       for (let i = 0; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
           const text = event.results[i][0].transcript.trim();
           if (text) {
-            // Only write to store — single source of truth for transcript
             useQuoteStore.getState().appendTranscript(text);
           }
-        } else {
-          interim += event.results[i][0].transcript;
         }
       }
-      const storeTranscript = useQuoteStore.getState().currentQuote?.recordingTranscript || "";
-      setLiveText(interim || storeTranscript.slice(-120));
     };
 
     recognition.onerror = (e: Event) => {
@@ -240,7 +268,6 @@ function RecordingBar({
   const handleStart = () => {
     clearTranscript();
     lastSentRef.current = "";
-    setLiveText("");
     setState("recording");
     startRecognition();
     startInterval();
@@ -267,7 +294,6 @@ function RecordingBar({
     clearAnalysisInterval();
     // Fire final analysis for any remaining text
     runAnalysisRef.current();
-    setLiveText("");
   };
 
   // Cleanup on unmount
@@ -281,89 +307,120 @@ function RecordingBar({
     };
   }, []);
 
+  const [showTranscript, setShowTranscript] = useState(false);
+
   if (!supported) return null;
 
   const transcript = useQuoteStore.getState().currentQuote?.recordingTranscript;
+  const hasTranscript = !!transcript && transcript.trim().length > 0;
 
   if (state === "idle") {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleStart}
-        className="border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 gap-2"
-      >
-        <Mic className="h-4 w-4" />
-        Record (Beta)
-      </Button>
-    );
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50/50">
-      {/* Status indicator */}
-      <div className="flex items-center gap-2 shrink-0">
-        {state === "recording" ? (
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-          </span>
-        ) : (
-          <span className="h-3 w-3 rounded-full bg-yellow-500" />
-        )}
-        <span className="text-sm font-medium text-orange-800">
-          {state === "recording" ? "Recording..." : "Paused"}
-        </span>
-        {analyzing && (
-          <Badge variant="outline" className="text-xs border-orange-300 text-orange-600 animate-pulse">
-            Analyzing...
-          </Badge>
-        )}
-      </div>
-
-      {/* Live transcript preview */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-orange-700 truncate italic">
-          {liveText || transcript?.slice(-120) || "Listening..."}
-        </p>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {state === "recording" ? (
+      <div className="flex items-center gap-2">
+        {hasTranscript && (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={handlePause}
-            className="h-8 gap-1 border-orange-300"
+            onClick={() => setShowTranscript(!showTranscript)}
+            className="text-xs text-orange-600 gap-1"
           >
-            <Pause className="h-3.5 w-3.5" />
-            Pause
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleResume}
-            className="h-8 gap-1 border-orange-300"
-          >
-            <Play className="h-3.5 w-3.5" />
-            Resume
+            <FileText className="h-3.5 w-3.5" />
+            Transcript
           </Button>
         )}
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          onClick={handleStop}
-          className="h-8 gap-1 border-orange-300 text-red-600 hover:text-red-700"
+          onClick={handleStart}
+          className="border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 gap-2"
         >
-          <Square className="h-3.5 w-3.5" />
-          Stop
+          <Mic className="h-4 w-4" />
+          Record (Beta)
         </Button>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50/50">
+        {/* Status indicator */}
+        <div className="flex items-center gap-2 shrink-0">
+          {state === "recording" ? (
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+            </span>
+          ) : (
+            <span className="h-3 w-3 rounded-full bg-yellow-500" />
+          )}
+          <span className="text-sm font-medium text-orange-800">
+            {state === "recording" ? "Recording..." : "Paused"}
+          </span>
+          {analyzing && (
+            <Badge variant="outline" className="text-xs border-orange-300 text-orange-600 animate-pulse">
+              Analyzing...
+            </Badge>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-1.5 sm:ml-auto shrink-0">
+          {hasTranscript && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowTranscript(!showTranscript)}
+              className="h-8 gap-1 text-xs text-orange-600"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Transcript
+            </Button>
+          )}
+          {state === "recording" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePause}
+              className="h-8 gap-1 border-orange-300"
+            >
+              <Pause className="h-3.5 w-3.5" />
+              Pause
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleResume}
+              className="h-8 gap-1 border-orange-300"
+            >
+              <Play className="h-3.5 w-3.5" />
+              Resume
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleStop}
+            className="h-8 gap-1 border-orange-300 text-red-600 hover:text-red-700"
+          >
+            <Square className="h-3.5 w-3.5" />
+            Stop
+          </Button>
+        </div>
+      </div>
+
+      {/* Transcript panel (toggleable) */}
+      {showTranscript && hasTranscript && (
+        <div className="p-3 rounded-lg border border-orange-200 bg-orange-50/30 max-h-40 overflow-y-auto">
+          <p className="text-xs text-orange-800 whitespace-pre-wrap">{transcript}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -674,7 +731,10 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {visibleItems.map((item) => (
           <div key={item.key} className="space-y-1">
-            <Label className="text-xs">{item.label}</Label>
+            <div className="flex items-center gap-1">
+              <Label className="text-xs">{item.label}</Label>
+              <AiCitation area={area} field={`unitItems.${item.key}`} />
+            </div>
             <Input
               type="number"
               inputMode="numeric"
@@ -701,7 +761,10 @@ function DetailPanel({ area }: { area: QuoteArea }) {
     <div className="p-4 bg-muted/30 border-t space-y-5">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Area Type</Label>
+          <div className="flex items-center gap-1">
+            <Label>Area Type</Label>
+            <AiCitation area={area} field="areaType" />
+          </div>
           <Select
             value={area.areaType}
             onValueChange={(val) => updateArea(area.id, { areaType: val as AreaType })}
@@ -822,87 +885,105 @@ function AreaRow({
 
         {/* Floor Type */}
         <TableCell className="min-w-[140px]">
-          <Select
-            value={area.floorType}
-            onValueChange={(val) => updateArea(area.id, { floorType: val as FloorType })}
-            onOpenChange={() => clearOnFocus("floorType")()}
-          >
-            <SelectTrigger className={`h-8 text-xs ${aiRing(area, "floorType")}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FLOOR_TYPES_V3.map((ft) => (
-                <SelectItem key={ft.value} value={ft.value}>
-                  {ft.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1">
+            <Select
+              value={area.floorType}
+              onValueChange={(val) => updateArea(area.id, { floorType: val as FloorType })}
+              onOpenChange={() => clearOnFocus("floorType")()}
+            >
+              <SelectTrigger className={`h-8 text-xs ${aiRing(area, "floorType")}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FLOOR_TYPES_V3.map((ft) => (
+                  <SelectItem key={ft.value} value={ft.value}>
+                    {ft.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <AiCitation area={area} field="floorType" />
+          </div>
         </TableCell>
 
         {/* Area Name */}
         <TableCell className="min-w-[130px]">
-          <Input
-            value={area.areaName}
-            onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
-            onFocus={clearOnFocus("areaName")}
-            placeholder={`Area ${area.sortOrder}`}
-            className={`h-8 text-xs ${aiRing(area, "areaName")}`}
-          />
+          <div className="flex items-center gap-1">
+            <Input
+              value={area.areaName}
+              onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
+              onFocus={clearOnFocus("areaName")}
+              placeholder={`Area ${area.sortOrder}`}
+              className={`h-8 text-xs ${aiRing(area, "areaName")}`}
+            />
+            <AiCitation area={area} field="areaName" />
+          </div>
         </TableCell>
 
         {/* L x W */}
         <TableCell className="min-w-[70px]">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            value={area.lengthFt || ""}
-            onChange={(e) => handleDimensionChange("lengthFt", e.target.value)}
-            onFocus={clearSqftOnFocus}
-            placeholder="L"
-            className={`h-8 text-xs w-16 ${aiRing(area, "lengthFt")}`}
-          />
+          <div className="flex items-center gap-0.5">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={area.lengthFt || ""}
+              onChange={(e) => handleDimensionChange("lengthFt", e.target.value)}
+              onFocus={clearSqftOnFocus}
+              placeholder="L"
+              className={`h-8 text-xs w-16 ${aiRing(area, "lengthFt")}`}
+            />
+            <AiCitation area={area} field="lengthFt" />
+          </div>
         </TableCell>
         <TableCell className="min-w-[70px]">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            value={area.widthFt || ""}
-            onChange={(e) => handleDimensionChange("widthFt", e.target.value)}
-            onFocus={clearSqftOnFocus}
-            placeholder="W"
-            className={`h-8 text-xs w-16 ${aiRing(area, "widthFt")}`}
-          />
+          <div className="flex items-center gap-0.5">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={area.widthFt || ""}
+              onChange={(e) => handleDimensionChange("widthFt", e.target.value)}
+              onFocus={clearSqftOnFocus}
+              placeholder="W"
+              className={`h-8 text-xs w-16 ${aiRing(area, "widthFt")}`}
+            />
+            <AiCitation area={area} field="widthFt" />
+          </div>
         </TableCell>
 
         {/* Sq Ft */}
         <TableCell className="min-w-[80px]">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            value={area.sqft || ""}
-            onChange={(e) => handleSqftChange(e.target.value)}
-            onFocus={clearSqftOnFocus}
-            placeholder="0"
-            className={`h-8 text-xs w-20 ${aiRing(area, "sqft")}`}
-          />
+          <div className="flex items-center gap-0.5">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={area.sqft || ""}
+              onChange={(e) => handleSqftChange(e.target.value)}
+              onFocus={clearSqftOnFocus}
+              placeholder="0"
+              className={`h-8 text-xs w-20 ${aiRing(area, "sqft")}`}
+            />
+            <AiCitation area={area} field="sqft" />
+          </div>
         </TableCell>
 
         {/* Qty */}
         <TableCell className="min-w-[60px]">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={area.quantity || ""}
-            onChange={(e) => updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })}
-            onFocus={clearOnFocus("quantity")}
-            placeholder="1"
-            className={`h-8 text-xs w-14 ${aiRing(area, "quantity")}`}
-          />
+          <div className="flex items-center gap-0.5">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={area.quantity || ""}
+              onChange={(e) => updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })}
+              onFocus={clearOnFocus("quantity")}
+              placeholder="1"
+              className={`h-8 text-xs w-14 ${aiRing(area, "quantity")}`}
+            />
+            <AiCitation area={area} field="quantity" />
+          </div>
         </TableCell>
 
         {/* Total Sq Ft */}
@@ -994,12 +1075,10 @@ export function AreasStep() {
   const addArea = useQuoteStore((s) => s.addArea);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  const handleAiAreasAdded = useCallback((ids: string[]) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      ids.forEach((id) => next.add(id));
-      return next;
-    });
+  // AI-added areas stay collapsed to avoid screen clutter
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleAiAreasAdded = useCallback((_ids: string[]) => {
+    // No-op: keep areas collapsed by default
   }, []);
 
   useEffect(() => {

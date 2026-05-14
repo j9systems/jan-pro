@@ -51,6 +51,7 @@ export interface QuoteArea {
   notes: string;
   aiFlags: AIFlag[];
   aiGenerated: Record<string, boolean>;
+  aiCitations: Record<string, string>;
   // calculated
   minsPerVisit: number;
   costPerMonth: number;

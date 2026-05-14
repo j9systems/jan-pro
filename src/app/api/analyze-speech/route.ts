@@ -41,7 +41,9 @@ toilets, urinals, mirrors, sinks, small_sudums, large_sudums, partitions, blinds
 
 ## Response Format
 
-Return ONLY valid JSON, no markdown, no explanation. Format:
+Return ONLY valid JSON, no markdown, no explanation. Every field you set MUST have a corresponding citation — the exact words from the transcript that led you to set that value.
+
+Format:
 {
   "actions": [
     {
@@ -56,15 +58,24 @@ Return ONLY valid JSON, no markdown, no explanation. Format:
         "sqftOverride": boolean,
         "quantity": number_default_1,
         "unitItems": { "key": count }
+      },
+      "citations": {
+        "fieldName": "exact quote from transcript",
+        "unitItems.key": "exact quote from transcript"
       }
     },
     {
       "type": "update_area",
       "areaIndex": number,
-      "fields": { "fieldName": value }
+      "fields": { "fieldName": value },
+      "citations": {
+        "fieldName": "exact quote from transcript"
+      }
     }
   ]
 }
+
+The "citations" object maps each field name to the verbatim snippet from the transcript. For unit items, use dotted keys like "unitItems.toilets". For dimensions, cite the part where length/width were mentioned. Keep citations short — just the relevant phrase, not the whole transcript.
 
 ## Important Rules
 1. Only create add_area when the speaker clearly describes a NEW area/room/space.
