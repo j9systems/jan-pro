@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,8 @@ import {
   Ruler,
   MapPin,
   CheckCircle2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
@@ -22,90 +25,106 @@ import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost } 
 import { formatCurrency } from "@/lib/utils";
 import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES } from "@/lib/constants";
 
-// Placeholder suggestions demonstrating what the AI will do.
-interface AISuggestion {
-  id: string;
+interface ReviewFlag {
   type: "warning" | "info" | "success";
-  icon: "ruler" | "camera" | "mic" | "mappin";
-  area: string;
-  areaIndex: number;
-  message: string;
+  icon: string;
+  areaIndex: number | null;
+  areaName: string;
+  title: string;
   detail: string;
 }
 
-const PLACEHOLDER_SUGGESTIONS: AISuggestion[] = [
-  {
-    id: "1",
-    type: "warning",
-    icon: "ruler",
-    area: "Main Lobby",
-    areaIndex: 0,
-    message: "Dimensions may be incorrect",
-    detail:
-      'The photo shows a small reception area, but dimensions calculate to 3,000 sq ft. Did you mean 30 x 10 instead of 300 x 10?',
-  },
-  {
-    id: "2",
-    type: "warning",
-    icon: "camera",
-    area: "Break Room",
-    areaIndex: 1,
-    message: "Floor type mismatch",
-    detail:
-      "The uploaded photo appears to show VCT flooring, but this area is tagged as Carpet.",
-  },
-  {
-    id: "3",
-    type: "info",
-    icon: "mic",
-    area: "Restrooms",
-    areaIndex: 2,
-    message: "Voice note mentions additional fixtures",
-    detail:
-      'Your voice note says "there are 4 sinks and 2 hand dryers" but no unit items are entered for this area.',
-  },
-  {
-    id: "4",
-    type: "success",
-    icon: "mappin",
-    area: "Office Wing",
-    areaIndex: 3,
-    message: "Looks good",
-    detail:
-      "Photo, notes, and measurements all align for this area. No issues detected.",
-  },
-];
-
-const ICON_MAP = {
+const ICON_MAP: Record<string, typeof Ruler> = {
   ruler: Ruler,
   camera: Camera,
   mic: Mic,
   mappin: MapPin,
+  alert: AlertCircle,
 };
 
-const TYPE_STYLES = {
+const TYPE_STYLES: Record<string, string> = {
   warning: "border-amber-200 bg-amber-50/50",
   info: "border-blue-200 bg-blue-50/50",
   success: "border-emerald-200 bg-emerald-50/50",
 };
 
-const TYPE_ICON_STYLES = {
+const TYPE_ICON_STYLES: Record<string, string> = {
   warning: "text-amber-600 bg-amber-100",
   info: "text-blue-600 bg-blue-100",
   success: "text-emerald-600 bg-emerald-100",
 };
 
 function AISummaryCard() {
+  const quote = useQuoteStore((s) => s.currentQuote);
   const setStep = useQuoteStore((s) => s.setStep);
-  const suggestions = PLACEHOLDER_SUGGESTIONS;
-  const warningCount = suggestions.filter((s) => s.type === "warning").length;
-  const infoCount = suggestions.filter((s) => s.type === "info").length;
-  const successCount = suggestions.filter((s) => s.type === "success").length;
+  const [flags, setFlags] = useState<ReviewFlag[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasRun, setHasRun] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const runReview = async () => {
+    if (!quote) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/review-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          areas: quote.areas.map((a) => ({
+            areaName: a.areaName,
+            sortOrder: a.sortOrder,
+            floorType: a.floorType,
+            areaType: a.areaType,
+            lengthFt: a.lengthFt,
+            widthFt: a.widthFt,
+            sqft: a.sqft,
+            sqftTotal: a.sqftTotal,
+            quantity: a.quantity,
+            unitItems: a.unitItems,
+            notes: a.notes,
+            aiCitations: a.aiCitations,
+            photos: a.photos?.length ? [`${a.photos.length} photos attached`] : [],
+          })),
+          transcript: quote.recordingTranscript || null,
+          facility: {
+            type: quote.facilityType,
+            employees: quote.numEmployees,
+            floors: quote.numFloors,
+            restrooms: quote.numRestrooms,
+            visitsPerWeek: quote.visitsPerWeek,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        setError("Failed to run review. Check that the API key is configured.");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.flags && Array.isArray(data.flags)) {
+        setFlags(data.flags);
+      } else {
+        setFlags([]);
+      }
+      setHasRun(true);
+    } catch (e) {
+      console.error("Review error:", e);
+      setError("Failed to connect to AI review service.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoToArea = (areaIndex: number) => {
     sessionStorage.setItem("janpro-goto-area", String(areaIndex));
     setStep(2);
   };
+
+  const warningCount = flags.filter((f) => f.type === "warning").length;
+  const infoCount = flags.filter((f) => f.type === "info").length;
+  const successCount = flags.filter((f) => f.type === "success").length;
 
   return (
     <Card className="border-janpro-navy/30 bg-gradient-to-br from-slate-50 to-white">
@@ -120,73 +139,111 @@ function AISummaryCard() {
                 AI Review
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Cross-referencing photos, voice notes, and measurements
+                {hasRun
+                  ? "Cross-referenced transcript, measurements, and area data"
+                  : "Analyze your quote for potential issues and inconsistencies"}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {warningCount > 0 && (
-              <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-xs">
-                {warningCount} {warningCount === 1 ? "issue" : "issues"}
-              </Badge>
-            )}
-            {infoCount > 0 && (
-              <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 text-xs">
-                {infoCount} {infoCount === 1 ? "suggestion" : "suggestions"}
-              </Badge>
-            )}
-            {successCount > 0 && (
-              <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 text-xs">
-                {successCount} verified
-              </Badge>
+            {hasRun && (
+              <>
+                {warningCount > 0 && (
+                  <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-xs">
+                    {warningCount} {warningCount === 1 ? "issue" : "issues"}
+                  </Badge>
+                )}
+                {infoCount > 0 && (
+                  <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 text-xs">
+                    {infoCount} {infoCount === 1 ? "suggestion" : "suggestions"}
+                  </Badge>
+                )}
+                {successCount > 0 && (
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 text-xs">
+                    {successCount} verified
+                  </Badge>
+                )}
+              </>
             )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
-        {suggestions.map((s) => {
-          const Icon = ICON_MAP[s.icon];
+        {/* Run / Re-run button */}
+        {!loading && (
+          <Button
+            type="button"
+            onClick={runReview}
+            disabled={!quote || quote.areas.length === 0}
+            className="w-full bg-janpro-navy hover:bg-janpro-navy/90 gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            {hasRun ? "Re-run AI Review" : "Run AI Review"}
+          </Button>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Analyzing quote...
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-red-200 bg-red-50/50 text-sm text-red-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* Results */}
+        {hasRun && !loading && flags.length === 0 && (
+          <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            No issues found. Quote looks good!
+          </div>
+        )}
+
+        {flags.map((flag, i) => {
+          const Icon = ICON_MAP[flag.icon] || AlertCircle;
           return (
             <div
-              key={s.id}
-              className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_STYLES[s.type]}`}
+              key={i}
+              className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_STYLES[flag.type] || TYPE_STYLES.info}`}
             >
-              <div className={`p-1.5 rounded-md shrink-0 mt-0.5 ${TYPE_ICON_STYLES[s.type]}`}>
+              <div className={`p-1.5 rounded-md shrink-0 mt-0.5 ${TYPE_ICON_STYLES[flag.type] || TYPE_ICON_STYLES.info}`}>
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium">{s.area}</span>
+                  <span className="text-sm font-medium">{flag.areaName}</span>
                   <span className="text-xs text-muted-foreground">
-                    &mdash; {s.message}
+                    &mdash; {flag.title}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {s.detail}
+                  {flag.detail}
                 </p>
               </div>
-              {s.type !== "success" ? (
+              {flag.type !== "success" && flag.areaIndex !== null ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="shrink-0 text-xs h-8 gap-1"
-                  onClick={() => handleGoToArea(s.areaIndex)}
+                  onClick={() => handleGoToArea(flag.areaIndex!)}
                 >
                   Revise
                   <ArrowRight className="h-3 w-3" />
                 </Button>
-              ) : (
+              ) : flag.type === "success" ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-1" />
-              )}
+              ) : null}
             </div>
           );
         })}
-
-        <div className="pt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Sparkles className="h-3 w-3" />
-          <span>AI analysis will run automatically once connected</span>
-        </div>
       </CardContent>
     </Card>
   );
