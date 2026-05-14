@@ -149,7 +149,16 @@ export const useQuoteStore = create<QuoteStore>()(
         const aiGenerated: Record<string, boolean> = {};
         for (const key of Object.keys(data)) {
           if (key !== "id" && key !== "sortOrder" && key !== "aiGenerated") {
-            aiGenerated[key] = true;
+            if (key === "unitItems" && data.unitItems) {
+              // Mark each individual unit item
+              for (const itemKey of Object.keys(data.unitItems)) {
+                if (data.unitItems[itemKey] > 0) {
+                  aiGenerated[`unitItems.${itemKey}`] = true;
+                }
+              }
+            } else {
+              aiGenerated[key] = true;
+            }
           }
         }
         const newArea: QuoteArea = { ...blank, ...data, aiGenerated };

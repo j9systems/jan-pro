@@ -143,7 +143,15 @@ function RecordingBar({
           if (targetArea && action.fields) {
             const aiGenerated = { ...(targetArea.aiGenerated || {}) };
             for (const key of Object.keys(action.fields)) {
-              aiGenerated[key] = true;
+              if (key === "unitItems" && action.fields.unitItems) {
+                for (const itemKey of Object.keys(action.fields.unitItems)) {
+                  if (action.fields.unitItems[itemKey] > 0) {
+                    aiGenerated[`unitItems.${itemKey}`] = true;
+                  }
+                }
+              } else {
+                aiGenerated[key] = true;
+              }
             }
             store.updateArea(targetArea.id, { ...action.fields, aiGenerated });
           }
@@ -605,8 +613,13 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
   const setItem = (key: string, value: number) => {
     updateArea(area.id, {
       unitItems: { ...area.unitItems, [key]: value },
-      aiGenerated: clearAiField(area, `unitItems.${key}`),
     });
+  };
+
+  const clearUnitItemOnFocus = (key: string) => () => {
+    if (area.aiGenerated?.[`unitItems.${key}`]) {
+      updateArea(area.id, { aiGenerated: clearAiField(area, `unitItems.${key}`) });
+    }
   };
 
   if (visibleItems.length === 0 && !showAll) {
@@ -668,6 +681,7 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
               min={0}
               value={area.unitItems[item.key] || ""}
               onChange={(e) => setItem(item.key, parseInt(e.target.value) || 0)}
+              onFocus={clearUnitItemOnFocus(item.key)}
               placeholder="0"
               className={`h-8 ${area.aiGenerated?.[`unitItems.${item.key}`] ? "ring-2 ring-orange-400" : ""}`}
             />
@@ -690,12 +704,12 @@ function DetailPanel({ area }: { area: QuoteArea }) {
           <Label>Area Type</Label>
           <Select
             value={area.areaType}
-            onValueChange={(val) =>
-              updateArea(area.id, {
-                areaType: val as AreaType,
-                aiGenerated: clearAiField(area, "areaType"),
-              })
-            }
+            onValueChange={(val) => updateArea(area.id, { areaType: val as AreaType })}
+            onOpenChange={() => {
+              if (area.aiGenerated?.areaType) {
+                updateArea(area.id, { aiGenerated: clearAiField(area, "areaType") });
+              }
+            }}
           >
             <SelectTrigger className={aiRing(area, "areaType")}>
               <SelectValue />
@@ -751,25 +765,36 @@ function AreaRow({
   // Check if this entire row was AI-created (has any AI-generated fields)
   const isAiRow = Object.values(area.aiGenerated || {}).some(Boolean);
 
+  // Clear AI flag on focus (user clicked into the field)
+  const clearOnFocus = (field: string) => () => {
+    if (area.aiGenerated?.[field]) {
+      updateArea(area.id, { aiGenerated: clearAiField(area, field) });
+    }
+  };
+
   const handleSqftChange = (val: string) => {
     const sqft = parseInt(val) || 0;
-    updateArea(area.id, {
-      sqft,
-      sqftOverride: true,
-      aiGenerated: { ...clearAiField(area, "sqft"), ...clearAiField(area, "lengthFt"), ...clearAiField(area, "widthFt") },
-    });
+    updateArea(area.id, { sqft, sqftOverride: true });
   };
 
   const handleDimensionChange = (field: "lengthFt" | "widthFt", val: string) => {
     const num = parseInt(val) || 0;
     const other = field === "lengthFt" ? area.widthFt : area.lengthFt;
     const sqft = num * other;
-    updateArea(area.id, {
-      [field]: num,
-      sqft,
-      sqftOverride: false,
-      aiGenerated: clearAiField(area, field),
-    });
+    updateArea(area.id, { [field]: num, sqft, sqftOverride: false });
+  };
+
+  const clearSqftOnFocus = () => {
+    if (area.aiGenerated?.sqft || area.aiGenerated?.lengthFt || area.aiGenerated?.widthFt) {
+      updateArea(area.id, {
+        aiGenerated: {
+          ...area.aiGenerated,
+          sqft: false,
+          lengthFt: false,
+          widthFt: false,
+        },
+      });
+    }
   };
 
   const unitItemCount = Object.values(area.unitItems).reduce(
@@ -799,12 +824,8 @@ function AreaRow({
         <TableCell className="min-w-[140px]">
           <Select
             value={area.floorType}
-            onValueChange={(val) =>
-              updateArea(area.id, {
-                floorType: val as FloorType,
-                aiGenerated: clearAiField(area, "floorType"),
-              })
-            }
+            onValueChange={(val) => updateArea(area.id, { floorType: val as FloorType })}
+            onOpenChange={() => clearOnFocus("floorType")()}
           >
             <SelectTrigger className={`h-8 text-xs ${aiRing(area, "floorType")}`}>
               <SelectValue />
@@ -823,12 +844,8 @@ function AreaRow({
         <TableCell className="min-w-[130px]">
           <Input
             value={area.areaName}
-            onChange={(e) =>
-              updateArea(area.id, {
-                areaName: e.target.value,
-                aiGenerated: clearAiField(area, "areaName"),
-              })
-            }
+            onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
+            onFocus={clearOnFocus("areaName")}
             placeholder={`Area ${area.sortOrder}`}
             className={`h-8 text-xs ${aiRing(area, "areaName")}`}
           />
@@ -842,6 +859,7 @@ function AreaRow({
             min={0}
             value={area.lengthFt || ""}
             onChange={(e) => handleDimensionChange("lengthFt", e.target.value)}
+            onFocus={clearSqftOnFocus}
             placeholder="L"
             className={`h-8 text-xs w-16 ${aiRing(area, "lengthFt")}`}
           />
@@ -853,6 +871,7 @@ function AreaRow({
             min={0}
             value={area.widthFt || ""}
             onChange={(e) => handleDimensionChange("widthFt", e.target.value)}
+            onFocus={clearSqftOnFocus}
             placeholder="W"
             className={`h-8 text-xs w-16 ${aiRing(area, "widthFt")}`}
           />
@@ -866,6 +885,7 @@ function AreaRow({
             min={0}
             value={area.sqft || ""}
             onChange={(e) => handleSqftChange(e.target.value)}
+            onFocus={clearSqftOnFocus}
             placeholder="0"
             className={`h-8 text-xs w-20 ${aiRing(area, "sqft")}`}
           />
@@ -878,12 +898,8 @@ function AreaRow({
             inputMode="numeric"
             min={1}
             value={area.quantity || ""}
-            onChange={(e) =>
-              updateArea(area.id, {
-                quantity: parseInt(e.target.value) || 1,
-                aiGenerated: clearAiField(area, "quantity"),
-              })
-            }
+            onChange={(e) => updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })}
+            onFocus={clearOnFocus("quantity")}
             placeholder="1"
             className={`h-8 text-xs w-14 ${aiRing(area, "quantity")}`}
           />
