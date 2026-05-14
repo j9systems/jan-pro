@@ -71,7 +71,6 @@ function RecordingBar({
 }: {
   onAreasAdded: (ids: string[]) => void;
 }) {
-  const quote = useQuoteStore((s) => s.currentQuote);
   const addAreaFromAI = useQuoteStore((s) => s.addAreaFromAI);
   const updateArea = useQuoteStore((s) => s.updateArea);
   const appendTranscript = useQuoteStore((s) => s.appendTranscript);
@@ -82,11 +81,18 @@ function RecordingBar({
   const [analyzing, setAnalyzing] = useState(false);
   const [supported, setSupported] = useState(true);
 
+  // Use refs to avoid stale closures in speech recognition callbacks
+  const stateRef = useRef<RecordingState>("idle");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pendingTextRef = useRef("");
   const lastSentRef = useRef("");
+
+  // Keep stateRef in sync
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const SR = typeof window !== "undefined"
@@ -96,8 +102,10 @@ function RecordingBar({
   }, []);
 
   const analyzeTranscript = useCallback(async () => {
-    if (!quote) return;
-    const fullTranscript = (quote.recordingTranscript + " " + pendingTextRef.current).trim();
+    // Read fresh quote from store to avoid stale closure
+    const currentQuote = useQuoteStore.getState().currentQuote;
+    if (!currentQuote) return;
+    const fullTranscript = (currentQuote.recordingTranscript + " " + pendingTextRef.current).trim();
     if (!fullTranscript || fullTranscript === lastSentRef.current) return;
     lastSentRef.current = fullTranscript;
 
@@ -108,7 +116,7 @@ function RecordingBar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transcript: fullTranscript,
-          existingAreas: quote.areas.map((a) => ({
+          existingAreas: currentQuote.areas.map((a) => ({
             areaName: a.areaName,
             sortOrder: a.sortOrder,
             floorType: a.floorType,
@@ -123,16 +131,17 @@ function RecordingBar({
       const data = await res.json();
       if (!data.actions || !Array.isArray(data.actions)) return;
 
+      // Re-read quote for latest areas (may have changed during fetch)
+      const freshQuote = useQuoteStore.getState().currentQuote;
       const newIds: string[] = [];
       for (const action of data.actions) {
         if (action.type === "add_area" && action.area) {
           const id = addAreaFromAI(action.area);
           if (id) newIds.push(id);
-        } else if (action.type === "update_area" && typeof action.areaIndex === "number") {
-          const targetArea = quote.areas[action.areaIndex];
+        } else if (action.type === "update_area" && typeof action.areaIndex === "number" && freshQuote) {
+          const targetArea = freshQuote.areas[action.areaIndex];
           if (targetArea && action.fields) {
-            // Mark updated fields as AI-generated
-            const aiGenerated = { ...targetArea.aiGenerated };
+            const aiGenerated = { ...(targetArea.aiGenerated || {}) };
             for (const key of Object.keys(action.fields)) {
               aiGenerated[key] = true;
             }
@@ -146,7 +155,7 @@ function RecordingBar({
     } finally {
       setAnalyzing(false);
     }
-  }, [quote, addAreaFromAI, updateArea, onAreasAdded]);
+  }, [addAreaFromAI, updateArea, onAreasAdded]);
 
   const startRecognition = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -178,19 +187,35 @@ function RecordingBar({
     };
 
     recognition.onend = () => {
-      // Auto-restart if still in recording state
-      if (recognitionRef.current && state === "recording") {
+      // Auto-restart ONLY if still actively recording (use ref, not state)
+      if (stateRef.current === "recording") {
         try {
-          recognitionRef.current.start();
+          recognition.start();
         } catch {
-          // already started
+          // already started or aborted
         }
       }
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [appendTranscript, state]);
+  }, [appendTranscript]);
+
+  const stopRecognition = () => {
+    if (recognitionRef.current) {
+      // Remove onend handler to prevent auto-restart race
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  };
+
+  const clearAnalysisInterval = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
 
   const handleStart = () => {
     clearTranscript();
@@ -200,7 +225,6 @@ function RecordingBar({
     setState("recording");
     startRecognition();
 
-    // Start 15-second analysis interval
     intervalRef.current = setInterval(() => {
       analyzeTranscript();
     }, 15000);
@@ -208,12 +232,8 @@ function RecordingBar({
 
   const handlePause = () => {
     setState("paused");
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    stopRecognition();
+    clearAnalysisInterval();
   };
 
   const handleResume = () => {
@@ -226,12 +246,8 @@ function RecordingBar({
 
   const handleStop = () => {
     setState("idle");
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    stopRecognition();
+    clearAnalysisInterval();
     // Fire final analysis
     analyzeTranscript();
     setLiveText("");
@@ -240,12 +256,17 @@ function RecordingBar({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      }
+      clearAnalysisInterval();
     };
   }, []);
 
   if (!supported) return null;
+
+  const transcript = useQuoteStore.getState().currentQuote?.recordingTranscript;
 
   if (state === "idle") {
     return (
@@ -262,7 +283,7 @@ function RecordingBar({
   }
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50/50">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50/50">
       {/* Status indicator */}
       <div className="flex items-center gap-2 shrink-0">
         {state === "recording" ? (
@@ -284,9 +305,9 @@ function RecordingBar({
       </div>
 
       {/* Live transcript preview */}
-      <div className="flex-1 min-w-0 mx-2">
+      <div className="flex-1 min-w-0">
         <p className="text-xs text-orange-700 truncate italic">
-          {liveText || (quote?.recordingTranscript?.slice(-120)) || "Listening..."}
+          {liveText || transcript?.slice(-120) || "Listening..."}
         </p>
       </div>
 
@@ -990,16 +1011,25 @@ export function AreasStep() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-janpro-navy mb-1">
-            Cleaning Areas
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Each area is one measured section of one floor type. Add areas as you walk the facility.
-          </p>
+      <div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-janpro-navy mb-1">
+              Cleaning Areas
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Each area is one measured section of one floor type. Add areas as you walk the facility.
+            </p>
+          </div>
+          {/* Record button on desktop — hidden on mobile */}
+          <div className="hidden sm:block shrink-0">
+            <RecordingBar onAreasAdded={handleAiAreasAdded} />
+          </div>
         </div>
-        <RecordingBar onAreasAdded={handleAiAreasAdded} />
+        {/* Record button on mobile — full width below header */}
+        <div className="sm:hidden mt-3">
+          <RecordingBar onAreasAdded={handleAiAreasAdded} />
+        </div>
       </div>
 
       {quote.areas.length > 0 && <AggregatesBar areas={quote.areas} />}
