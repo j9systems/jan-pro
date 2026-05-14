@@ -50,6 +50,7 @@ export interface QuoteArea {
   voiceMemos: string[];
   notes: string;
   aiFlags: AIFlag[];
+  aiGenerated: Record<string, boolean>;
   // calculated
   minsPerVisit: number;
   costPerMonth: number;
@@ -135,6 +136,7 @@ export interface Quote {
   status: QuoteStatus;
   signatureData?: string;
   signedDate?: string;
+  recordingTranscript: string;
   createdAt: string;
   updatedAt: string;
 }

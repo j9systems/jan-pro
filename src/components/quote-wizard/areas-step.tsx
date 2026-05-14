@@ -37,6 +37,9 @@ import {
   MicOff,
   ImageIcon,
   Info,
+  Square,
+  Pause,
+  Play,
 } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import {
@@ -46,6 +49,286 @@ import {
   UNIT_ITEMS_BY_AREA_TYPE,
 } from "@/lib/constants";
 import type { QuoteArea, FloorType, AreaType } from "@/lib/types";
+
+// --- Helper: orange ring class for AI-generated fields ---
+
+function aiRing(area: QuoteArea, field: string): string {
+  return area.aiGenerated?.[field] ? "ring-2 ring-orange-400" : "";
+}
+
+// Clear AI flag on manual edit
+function clearAiField(area: QuoteArea, field: string): Record<string, boolean> {
+  if (!area.aiGenerated?.[field]) return area.aiGenerated || {};
+  return { ...area.aiGenerated, [field]: false };
+}
+
+// --- Recording Bar ---
+
+type RecordingState = "idle" | "recording" | "paused";
+
+function RecordingBar({
+  onAreasAdded,
+}: {
+  onAreasAdded: (ids: string[]) => void;
+}) {
+  const quote = useQuoteStore((s) => s.currentQuote);
+  const addAreaFromAI = useQuoteStore((s) => s.addAreaFromAI);
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const appendTranscript = useQuoteStore((s) => s.appendTranscript);
+  const clearTranscript = useQuoteStore((s) => s.clearTranscript);
+
+  const [state, setState] = useState<RecordingState>("idle");
+  const [liveText, setLiveText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [supported, setSupported] = useState(true);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingTextRef = useRef("");
+  const lastSentRef = useRef("");
+
+  useEffect(() => {
+    const SR = typeof window !== "undefined"
+      ? window.SpeechRecognition || window.webkitSpeechRecognition
+      : null;
+    if (!SR) setSupported(false);
+  }, []);
+
+  const analyzeTranscript = useCallback(async () => {
+    if (!quote) return;
+    const fullTranscript = (quote.recordingTranscript + " " + pendingTextRef.current).trim();
+    if (!fullTranscript || fullTranscript === lastSentRef.current) return;
+    lastSentRef.current = fullTranscript;
+
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/analyze-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript: fullTranscript,
+          existingAreas: quote.areas.map((a) => ({
+            areaName: a.areaName,
+            sortOrder: a.sortOrder,
+            floorType: a.floorType,
+            areaType: a.areaType,
+            sqftTotal: a.sqftTotal,
+            unitItems: a.unitItems,
+          })),
+        }),
+      });
+
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.actions || !Array.isArray(data.actions)) return;
+
+      const newIds: string[] = [];
+      for (const action of data.actions) {
+        if (action.type === "add_area" && action.area) {
+          const id = addAreaFromAI(action.area);
+          if (id) newIds.push(id);
+        } else if (action.type === "update_area" && typeof action.areaIndex === "number") {
+          const targetArea = quote.areas[action.areaIndex];
+          if (targetArea && action.fields) {
+            // Mark updated fields as AI-generated
+            const aiGenerated = { ...targetArea.aiGenerated };
+            for (const key of Object.keys(action.fields)) {
+              aiGenerated[key] = true;
+            }
+            updateArea(targetArea.id, { ...action.fields, aiGenerated });
+          }
+        }
+      }
+      if (newIds.length > 0) onAreasAdded(newIds);
+    } catch (e) {
+      console.error("Analysis error:", e);
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [quote, addAreaFromAI, updateArea, onAreasAdded]);
+
+  const startRecognition = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          const text = event.results[i][0].transcript.trim();
+          if (text) {
+            pendingTextRef.current += (pendingTextRef.current ? " " : "") + text;
+            appendTranscript(text);
+          }
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setLiveText(interim || pendingTextRef.current.slice(-120));
+    };
+
+    recognition.onerror = (e: Event) => {
+      console.error("Speech recognition error:", e);
+    };
+
+    recognition.onend = () => {
+      // Auto-restart if still in recording state
+      if (recognitionRef.current && state === "recording") {
+        try {
+          recognitionRef.current.start();
+        } catch {
+          // already started
+        }
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [appendTranscript, state]);
+
+  const handleStart = () => {
+    clearTranscript();
+    pendingTextRef.current = "";
+    lastSentRef.current = "";
+    setLiveText("");
+    setState("recording");
+    startRecognition();
+
+    // Start 15-second analysis interval
+    intervalRef.current = setInterval(() => {
+      analyzeTranscript();
+    }, 15000);
+  };
+
+  const handlePause = () => {
+    setState("paused");
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const handleResume = () => {
+    setState("recording");
+    startRecognition();
+    intervalRef.current = setInterval(() => {
+      analyzeTranscript();
+    }, 15000);
+  };
+
+  const handleStop = () => {
+    setState("idle");
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // Fire final analysis
+    analyzeTranscript();
+    setLiveText("");
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  if (!supported) return null;
+
+  if (state === "idle") {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleStart}
+        className="border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-700 gap-2"
+      >
+        <Mic className="h-4 w-4" />
+        Record (Beta)
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-300 bg-orange-50/50">
+      {/* Status indicator */}
+      <div className="flex items-center gap-2 shrink-0">
+        {state === "recording" ? (
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+          </span>
+        ) : (
+          <span className="h-3 w-3 rounded-full bg-yellow-500" />
+        )}
+        <span className="text-sm font-medium text-orange-800">
+          {state === "recording" ? "Recording..." : "Paused"}
+        </span>
+        {analyzing && (
+          <Badge variant="outline" className="text-xs border-orange-300 text-orange-600 animate-pulse">
+            Analyzing...
+          </Badge>
+        )}
+      </div>
+
+      {/* Live transcript preview */}
+      <div className="flex-1 min-w-0 mx-2">
+        <p className="text-xs text-orange-700 truncate italic">
+          {liveText || (quote?.recordingTranscript?.slice(-120)) || "Listening..."}
+        </p>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {state === "recording" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handlePause}
+            className="h-8 gap-1 border-orange-300"
+          >
+            <Pause className="h-3.5 w-3.5" />
+            Pause
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResume}
+            className="h-8 gap-1 border-orange-300"
+          >
+            <Play className="h-3.5 w-3.5" />
+            Resume
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleStop}
+          className="h-8 gap-1 border-orange-300 text-red-600 hover:text-red-700"
+        >
+          <Square className="h-3.5 w-3.5" />
+          Stop
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // --- Aggregates Bar ---
 
@@ -82,7 +365,7 @@ function AggregatesBar({ areas }: { areas: QuoteArea[] }) {
   );
 }
 
-// --- Photo Upload (reused from V2) ---
+// --- Photo Upload ---
 
 function PhotoUpload({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
@@ -176,7 +459,7 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
   );
 }
 
-// --- Voice Notes (reused from V2) ---
+// --- Voice Notes ---
 
 function VoiceNotes({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
@@ -279,7 +562,6 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
     (k) => area.unitItems[k] > 0
   );
 
-  // Show: default items for area type + any items that already have values
   const visibleKeys = showAll
     ? ALL_UNIT_ITEMS.map((u) => u.key)
     : Array.from(new Set([...defaultItems, ...activeItems]));
@@ -293,6 +575,7 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
   const setItem = (key: string, value: number) => {
     updateArea(area.id, {
       unitItems: { ...area.unitItems, [key]: value },
+      aiGenerated: clearAiField(area, `unitItems.${key}`),
     });
   };
 
@@ -356,7 +639,7 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
               value={area.unitItems[item.key] || ""}
               onChange={(e) => setItem(item.key, parseInt(e.target.value) || 0)}
               placeholder="0"
-              className="h-8"
+              className={`h-8 ${area.aiGenerated?.[`unitItems.${item.key}`] ? "ring-2 ring-orange-400" : ""}`}
             />
           </div>
         ))}
@@ -365,22 +648,26 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
   );
 }
 
-// --- Detail Panel (expandable under each row) ---
+// --- Detail Panel ---
 
 function DetailPanel({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
 
   return (
     <div className="p-4 bg-muted/30 border-t space-y-5">
-      {/* Area Type */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Area Type</Label>
           <Select
             value={area.areaType}
-            onValueChange={(val) => updateArea(area.id, { areaType: val as AreaType })}
+            onValueChange={(val) =>
+              updateArea(area.id, {
+                areaType: val as AreaType,
+                aiGenerated: clearAiField(area, "areaType"),
+              })
+            }
           >
-            <SelectTrigger>
+            <SelectTrigger className={aiRing(area, "areaType")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -406,10 +693,8 @@ function DetailPanel({ area }: { area: QuoteArea }) {
         )}
       </div>
 
-      {/* Unit Items */}
       <UnitItemsPanel area={area} />
 
-      {/* Photos + Notes side by side on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <PhotoUpload area={area} />
         <VoiceNotes area={area} />
@@ -433,9 +718,16 @@ function AreaRow({
   const removeArea = useQuoteStore((s) => s.removeArea);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Check if this entire row was AI-created (has any AI-generated fields)
+  const isAiRow = Object.values(area.aiGenerated || {}).some(Boolean);
+
   const handleSqftChange = (val: string) => {
     const sqft = parseInt(val) || 0;
-    updateArea(area.id, { sqft, sqftOverride: true });
+    updateArea(area.id, {
+      sqft,
+      sqftOverride: true,
+      aiGenerated: { ...clearAiField(area, "sqft"), ...clearAiField(area, "lengthFt"), ...clearAiField(area, "widthFt") },
+    });
   };
 
   const handleDimensionChange = (field: "lengthFt" | "widthFt", val: string) => {
@@ -446,6 +738,7 @@ function AreaRow({
       [field]: num,
       sqft,
       sqftOverride: false,
+      aiGenerated: clearAiField(area, field),
     });
   };
 
@@ -456,7 +749,7 @@ function AreaRow({
 
   return (
     <>
-      <TableRow className={isExpanded ? "bg-muted/30 border-b-0" : ""}>
+      <TableRow className={`${isExpanded ? "bg-muted/30 border-b-0" : ""} ${isAiRow ? "border-l-2 border-l-orange-400" : ""}`}>
         {/* Expand toggle */}
         <TableCell className="w-8 px-1">
           <button
@@ -476,9 +769,14 @@ function AreaRow({
         <TableCell className="min-w-[140px]">
           <Select
             value={area.floorType}
-            onValueChange={(val) => updateArea(area.id, { floorType: val as FloorType })}
+            onValueChange={(val) =>
+              updateArea(area.id, {
+                floorType: val as FloorType,
+                aiGenerated: clearAiField(area, "floorType"),
+              })
+            }
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className={`h-8 text-xs ${aiRing(area, "floorType")}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -495,9 +793,14 @@ function AreaRow({
         <TableCell className="min-w-[130px]">
           <Input
             value={area.areaName}
-            onChange={(e) => updateArea(area.id, { areaName: e.target.value })}
+            onChange={(e) =>
+              updateArea(area.id, {
+                areaName: e.target.value,
+                aiGenerated: clearAiField(area, "areaName"),
+              })
+            }
             placeholder={`Area ${area.sortOrder}`}
-            className="h-8 text-xs"
+            className={`h-8 text-xs ${aiRing(area, "areaName")}`}
           />
         </TableCell>
 
@@ -510,7 +813,7 @@ function AreaRow({
             value={area.lengthFt || ""}
             onChange={(e) => handleDimensionChange("lengthFt", e.target.value)}
             placeholder="L"
-            className="h-8 text-xs w-16"
+            className={`h-8 text-xs w-16 ${aiRing(area, "lengthFt")}`}
           />
         </TableCell>
         <TableCell className="min-w-[70px]">
@@ -521,7 +824,7 @@ function AreaRow({
             value={area.widthFt || ""}
             onChange={(e) => handleDimensionChange("widthFt", e.target.value)}
             placeholder="W"
-            className="h-8 text-xs w-16"
+            className={`h-8 text-xs w-16 ${aiRing(area, "widthFt")}`}
           />
         </TableCell>
 
@@ -534,7 +837,7 @@ function AreaRow({
             value={area.sqft || ""}
             onChange={(e) => handleSqftChange(e.target.value)}
             placeholder="0"
-            className="h-8 text-xs w-20"
+            className={`h-8 text-xs w-20 ${aiRing(area, "sqft")}`}
           />
         </TableCell>
 
@@ -546,10 +849,13 @@ function AreaRow({
             min={1}
             value={area.quantity || ""}
             onChange={(e) =>
-              updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })
+              updateArea(area.id, {
+                quantity: parseInt(e.target.value) || 1,
+                aiGenerated: clearAiField(area, "quantity"),
+              })
             }
             placeholder="1"
-            className="h-8 text-xs w-14"
+            className={`h-8 text-xs w-14 ${aiRing(area, "quantity")}`}
           />
         </TableCell>
 
@@ -642,7 +948,14 @@ export function AreasStep() {
   const addArea = useQuoteStore((s) => s.addArea);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  // If navigating back from AI Summary with a target area
+  const handleAiAreasAdded = useCallback((ids: string[]) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const target = sessionStorage.getItem("janpro-goto-area");
     if (target !== null && quote) {
@@ -677,13 +990,16 @@ export function AreasStep() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold text-janpro-navy mb-1">
-          Cleaning Areas
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Each area is one measured section of one floor type. Add areas as you walk the facility.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-janpro-navy mb-1">
+            Cleaning Areas
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Each area is one measured section of one floor type. Add areas as you walk the facility.
+          </p>
+        </div>
+        <RecordingBar onAreasAdded={handleAiAreasAdded} />
       </div>
 
       {quote.areas.length > 0 && <AggregatesBar areas={quote.areas} />}
@@ -720,7 +1036,7 @@ export function AreasStep() {
       ) : (
         <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
           <p className="mb-2">No areas yet.</p>
-          <p className="text-sm">Click below to add your first area.</p>
+          <p className="text-sm">Click &quot;Record (Beta)&quot; to narrate your walkthrough, or add areas manually below.</p>
         </div>
       )}
 

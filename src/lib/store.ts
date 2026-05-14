@@ -24,6 +24,7 @@ function createBlankArea(sortOrder: number): QuoteArea {
     voiceMemos: [],
     notes: "",
     aiFlags: [],
+    aiGenerated: {},
     minsPerVisit: 0,
     costPerMonth: 0,
   };
@@ -73,6 +74,7 @@ function createBlankQuote(): Quote {
     calculatedMonthly: 0,
     quotedMonthly: 0,
     notes: "",
+    recordingTranscript: "",
     status: "draft",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -87,8 +89,11 @@ interface QuoteStore {
   initNewQuote: () => void;
   updateQuote: (partial: Partial<Quote>) => void;
   addArea: () => string;
+  addAreaFromAI: (data: Partial<QuoteArea>) => string;
   updateArea: (id: string, partial: Partial<QuoteArea>) => void;
   removeArea: (id: string) => void;
+  appendTranscript: (text: string) => void;
+  clearTranscript: () => void;
   addPorter: () => void;
   removePorter: (porterNumber: 1 | 2) => void;
   updatePorter: (porterNumber: 1 | 2, partial: Partial<Porter>) => void;
@@ -126,6 +131,28 @@ export const useQuoteStore = create<QuoteStore>()(
         const { currentQuote } = get();
         if (!currentQuote) return "";
         const newArea = createBlankArea(currentQuote.areas.length + 1);
+        const updated = {
+          ...currentQuote,
+          areas: [...currentQuote.areas, newArea],
+          updatedAt: new Date().toISOString(),
+        };
+        const calcs = calculateQuote(updated);
+        set({ currentQuote: { ...updated, ...calcs } as Quote });
+        return newArea.id;
+      },
+
+      addAreaFromAI: (data) => {
+        const { currentQuote } = get();
+        if (!currentQuote) return "";
+        const blank = createBlankArea(currentQuote.areas.length + 1);
+        // Mark all provided fields as AI-generated
+        const aiGenerated: Record<string, boolean> = {};
+        for (const key of Object.keys(data)) {
+          if (key !== "id" && key !== "sortOrder" && key !== "aiGenerated") {
+            aiGenerated[key] = true;
+          }
+        }
+        const newArea: QuoteArea = { ...blank, ...data, aiGenerated };
         const updated = {
           ...currentQuote,
           areas: [...currentQuote.areas, newArea],
@@ -246,6 +273,26 @@ export const useQuoteStore = create<QuoteStore>()(
         };
         const calcs = calculateQuote(updated);
         set({ currentQuote: { ...updated, ...calcs } as Quote });
+      },
+
+      appendTranscript: (text) => {
+        const { currentQuote } = get();
+        if (!currentQuote) return;
+        const separator = currentQuote.recordingTranscript ? " " : "";
+        set({
+          currentQuote: {
+            ...currentQuote,
+            recordingTranscript: currentQuote.recordingTranscript + separator + text,
+          },
+        });
+      },
+
+      clearTranscript: () => {
+        const { currentQuote } = get();
+        if (!currentQuote) return;
+        set({
+          currentQuote: { ...currentQuote, recordingTranscript: "" },
+        });
       },
 
       recalculate: () => {
