@@ -50,9 +50,9 @@ export default function NewQuotePage() {
     }
   };
 
-  const handleSaveAndPresent = () => {
+  const handleSaveAndPresent = async () => {
     updateQuote({ status: "presented" });
-    saveQuote();
+    await saveQuote();
     router.push(`/quotes/${quote.id}/present`);
   };
 

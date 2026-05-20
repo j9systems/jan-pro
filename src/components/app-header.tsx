@@ -1,10 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { User, LogOut } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export function AppHeader() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const supabase = createClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? null);
+    });
+  }, [supabase]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
   return (
     <header className="relative bg-gradient-to-r from-janpro-navy via-[#002a78] to-[#003a9e] text-white shadow-lg">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_right,rgba(0,174,239,0.08),transparent_60%)]" />
@@ -23,13 +41,24 @@ export function AppHeader() {
             QuoteBuilder
           </span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-sm">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
               <User className="h-3.5 w-3.5" />
             </div>
-            <span className="hidden sm:inline text-white/80">Sales Rep</span>
+            <span className="hidden sm:inline text-white/80 max-w-[160px] truncate">
+              {email || "Loading..."}
+            </span>
           </div>
+          {email && (
+            <button
+              onClick={handleSignOut}
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4 text-white/60 hover:text-white" />
+            </button>
+          )}
         </div>
       </div>
     </header>

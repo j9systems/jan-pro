@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { Quote, QuoteArea, Porter, SpecialService } from "./types";
+import { fetchQuotes, fetchQuote, saveQuoteToDb, deleteQuoteFromDb } from "./supabase/queries";
 import { calculateQuote } from "./calculator";
 import { generateId } from "./utils";
 
@@ -103,14 +103,14 @@ interface QuoteStore {
   removeSpecialService: (id: string) => void;
   recalculate: () => void;
   setStep: (n: number) => void;
-  saveQuote: () => void;
-  loadQuote: (id: string) => void;
+  saveQuote: () => Promise<void>;
+  loadQuotes: () => Promise<void>;
+  loadQuote: (id: string) => Promise<void>;
   clearQuote: () => void;
-  deleteQuote: (id: string) => void;
+  deleteQuote: (id: string) => Promise<void>;
 }
 
 export const useQuoteStore = create<QuoteStore>()(
-  persist(
     (set, get) => ({
       currentQuote: null,
       savedQuotes: [],
@@ -315,23 +315,26 @@ export const useQuoteStore = create<QuoteStore>()(
         set({ currentStep: n });
       },
 
-      saveQuote: () => {
-        const { currentQuote, savedQuotes } = get();
+      saveQuote: async () => {
+        const { currentQuote } = get();
         if (!currentQuote) return;
-        const existing = savedQuotes.findIndex((q) => q.id === currentQuote.id);
         const updated = { ...currentQuote, updatedAt: new Date().toISOString() };
-        if (existing >= 0) {
-          const newSaved = [...savedQuotes];
-          newSaved[existing] = updated;
-          set({ savedQuotes: newSaved, currentQuote: updated });
-        } else {
-          set({ savedQuotes: [...savedQuotes, updated], currentQuote: updated });
+        set({ currentQuote: updated });
+        const success = await saveQuoteToDb(updated);
+        if (success) {
+          // Refresh the saved quotes list
+          const quotes = await fetchQuotes();
+          set({ savedQuotes: quotes });
         }
       },
 
-      loadQuote: (id) => {
-        const { savedQuotes } = get();
-        const quote = savedQuotes.find((q) => q.id === id);
+      loadQuotes: async () => {
+        const quotes = await fetchQuotes();
+        set({ savedQuotes: quotes });
+      },
+
+      loadQuote: async (id) => {
+        const quote = await fetchQuote(id);
         if (quote) {
           set({ currentQuote: { ...quote }, currentStep: 0 });
         }
@@ -341,14 +344,10 @@ export const useQuoteStore = create<QuoteStore>()(
         set({ currentQuote: null, currentStep: 0 });
       },
 
-      deleteQuote: (id) => {
+      deleteQuote: async (id) => {
+        await deleteQuoteFromDb(id);
         const { savedQuotes } = get();
         set({ savedQuotes: savedQuotes.filter((q) => q.id !== id) });
       },
-    }),
-    {
-      name: "janpro-quotes",
-      partialize: (state) => ({ savedQuotes: state.savedQuotes }),
-    }
-  )
+    })
 );

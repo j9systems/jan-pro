@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Calendar, ClipboardList, ArrowRight, Building2 } from "lucide-react";
@@ -23,7 +24,11 @@ function getStatusBadge(status: string) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { savedQuotes, initNewQuote } = useQuoteStore();
+  const { savedQuotes, initNewQuote, loadQuotes } = useQuoteStore();
+
+  useEffect(() => {
+    loadQuotes();
+  }, [loadQuotes]);
 
   const handleNewQuote = () => {
     initNewQuote();

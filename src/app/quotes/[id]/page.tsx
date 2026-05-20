@@ -28,12 +28,13 @@ export default function QuoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const { savedQuotes, loadQuote, setStep } = useQuoteStore();
+  const { savedQuotes, loadQuote, loadQuotes, setStep } = useQuoteStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    loadQuotes();
+  }, [loadQuotes]);
 
   if (!mounted) return null;
 
