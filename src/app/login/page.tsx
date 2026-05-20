@@ -161,10 +161,10 @@ export default function LoginPage() {
                     type="text"
                     inputMode="numeric"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="000000"
-                    className="text-center text-2xl tracking-[0.3em] font-mono"
-                    maxLength={6}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                    placeholder="00000000"
+                    className="text-center text-2xl tracking-[0.2em] font-mono"
+                    maxLength={8}
                     autoFocus
                     required
                   />
