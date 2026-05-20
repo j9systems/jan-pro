@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
 import { ProspectStep } from "@/components/quote-wizard/prospect-step";
@@ -56,51 +56,50 @@ export default function NewQuotePage() {
     router.push(`/quotes/${quote.id}/present`);
   };
 
+  const progress = ((currentStep + 1) / STEPS.length) * 100;
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-6">
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between mb-8">
-        {STEPS.map((step, index) => (
-          <div key={step.label} className="flex items-center flex-1 last:flex-none">
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      {/* Step Header */}
+      <div className="mb-8">
+        {/* Progress bar */}
+        <div className="h-1 bg-muted/60 rounded-full mb-6 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-janpro-navy to-janpro-cyan rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Step pills */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 -mb-1">
+          {STEPS.map((step, index) => (
             <button
+              key={step.label}
               type="button"
               onClick={() => setStep(index)}
-              className="flex items-center gap-2 group"
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${
+                index === currentStep
+                  ? "bg-janpro-navy text-white shadow-glow"
+                  : index < currentStep
+                  ? "bg-janpro-cyan/10 text-janpro-cyan hover:bg-janpro-cyan/20"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+              }`}
             >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
-                  index < currentStep
-                    ? "bg-gradient-to-br from-janpro-cyan to-[#0090c8] text-white shadow-glow-cyan"
-                    : index === currentStep
-                    ? "bg-gradient-to-br from-janpro-navy to-[#003a9e] text-white shadow-glow"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {index < currentStep ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  index + 1
-                )}
-              </div>
-              <span
-                className={`text-sm hidden md:inline ${
+              {index < currentStep ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
                   index === currentStep
-                    ? "font-semibold text-janpro-navy"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {step.label}
-              </span>
+                    ? "bg-white/20 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  {index + 1}
+                </span>
+              )}
+              <span className="hidden sm:inline">{step.label}</span>
             </button>
-            {index < STEPS.length - 1 && (
-              <div
-                className={`flex-1 h-[2px] mx-3 rounded-full transition-colors duration-300 ${
-                  index < currentStep ? "bg-gradient-to-r from-janpro-cyan to-janpro-cyan/50" : "bg-muted"
-                }`}
-              />
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Step Content */}
@@ -109,33 +108,42 @@ export default function NewQuotePage() {
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between mt-8 pt-6 border-t border-border/50">
+      <div className="flex items-center justify-between mt-10 pt-6 border-t border-border/40">
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={handleBack}
           disabled={currentStep === 0}
           size="lg"
+          className="gap-2"
         >
+          <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
 
-        {currentStep === STEPS.length - 1 ? (
-          <Button
-            onClick={handleSaveAndPresent}
-            size="lg"
-            className=""
-          >
-            Save & Present
-          </Button>
-        ) : (
-          <Button
-            onClick={handleContinue}
-            size="lg"
-            className=""
-          >
-            Continue
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground hidden sm:inline">
+            Step {currentStep + 1} of {STEPS.length}
+          </span>
+          {currentStep === STEPS.length - 1 ? (
+            <Button
+              onClick={handleSaveAndPresent}
+              size="lg"
+              className="gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Save & Present
+            </Button>
+          ) : (
+            <Button
+              onClick={handleContinue}
+              size="lg"
+              className="gap-2"
+            >
+              Continue
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

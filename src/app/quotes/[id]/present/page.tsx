@@ -50,65 +50,48 @@ export default function PresentPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="text-center mb-8">
-        <div className="inline-block bg-janpro-navy text-white px-4 py-2 rounded mb-4">
-          <span className="font-bold text-xl tracking-tight">JAN-PRO</span>
-        </div>
-        <h1 className="text-2xl font-bold text-janpro-navy">
-          Commercial Cleaning Proposal
-        </h1>
-        <p className="text-lg text-muted-foreground mt-1">
-          Prepared for{" "}
-          <span className="font-semibold text-foreground">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-janpro-navy via-janpro-navy to-[#003a9e] p-8 md:p-10 mb-8 shadow-glass-xl text-center">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(0,174,239,0.15),transparent_60%)]" />
+        <div className="relative">
+          <p className="text-janpro-cyan/70 text-xs font-semibold uppercase tracking-[0.2em] mb-3">Commercial Cleaning Proposal</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">
             {quote.companyName || "—"}
-          </span>
-        </p>
+          </h1>
+          <p className="text-white/50 text-sm">
+            Prepared by JAN-PRO Franchise Development
+          </p>
+
+          {/* Service Summary — inline */}
+          <div className="grid grid-cols-3 gap-6 mt-8 pt-8 border-t border-white/10">
+            <div>
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-1">Visits/Week</p>
+              <p className="text-2xl font-bold text-white">{visitsLabel}</p>
+            </div>
+            <div>
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-1">Total Sq Ft</p>
+              <p className="text-2xl font-bold text-white">{quote.totalSqft.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-1">Hours/Visit</p>
+              <p className="text-2xl font-bold text-white">{quote.hoursPerVisit.toFixed(1)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Service Summary */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-janpro-navy mb-4">
-            Service Summary
-          </h2>
-          <div className="grid grid-cols-3 gap-6 text-center">
-            <div>
-              <p className="text-sm text-muted-foreground">Visits Per Week</p>
-              <p className="text-2xl font-bold text-janpro-navy">
-                {visitsLabel}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Sq Ft</p>
-              <p className="text-2xl font-bold text-janpro-navy">
-                {quote.totalSqft.toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Hours Per Visit</p>
-              <p className="text-2xl font-bold text-janpro-navy">
-                {quote.hoursPerVisit.toFixed(1)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Monthly Investment */}
-      <Card className="mb-6 border-0 bg-gradient-to-br from-janpro-navy via-janpro-navy to-[#003a9e] text-white shadow-glass-xl overflow-hidden">
-        <CardContent className="p-8 text-center relative">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,174,239,0.15),transparent_60%)]" />
-          <div className="relative">
-            <p className="text-sm text-white/70 mb-2">
-              Monthly Service Investment
-            </p>
-            <p className="text-5xl font-bold text-white mb-2">
-              {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
-            </p>
-            <p className="text-sm text-white/70">per month</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="relative rounded-2xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-glass-lg p-10 mb-8 text-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-janpro-navy-light/30 to-transparent" />
+        <div className="relative">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            Monthly Service Investment
+          </p>
+          <p className="text-6xl md:text-7xl font-bold text-janpro-navy tracking-tight mb-2">
+            {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
+          </p>
+          <p className="text-muted-foreground">per month</p>
+        </div>
+      </div>
 
       {/* Area Breakdown */}
       <Card className="mb-6">

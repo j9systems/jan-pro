@@ -67,19 +67,20 @@ export default function QuoteDetailPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Back + Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.push("/dashboard")}
+          className="shrink-0 self-start"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-janpro-navy">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-janpro-navy tracking-tight truncate">
               {quote.companyName || "Untitled Quote"}
             </h1>
             {getStatusBadge(quote.status)}
@@ -89,17 +90,17 @@ export default function QuoteDetailPage() {
             Updated {new Date(quote.updatedAt).toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleEdit}>
-            <Edit className="h-4 w-4 mr-2" />
+        <div className="flex gap-2 shrink-0">
+          <Button variant="outline" onClick={handleEdit} className="gap-2">
+            <Edit className="h-4 w-4" />
             Edit
           </Button>
           <Button
-            className="bg-janpro-navy hover:bg-janpro-navy/90"
             onClick={() => router.push(`/quotes/${id}/present`)}
+            className="gap-2"
           >
-            <Presentation className="h-4 w-4 mr-2" />
-            Present Again
+            <Presentation className="h-4 w-4" />
+            Present
           </Button>
         </div>
       </div>
