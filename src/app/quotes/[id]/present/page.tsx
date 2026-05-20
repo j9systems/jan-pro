@@ -95,15 +95,18 @@ export default function PresentPage() {
       </Card>
 
       {/* Monthly Investment */}
-      <Card className="mb-6 border-janpro-navy/30 bg-janpro-navy/[0.02]">
-        <CardContent className="p-8 text-center">
-          <p className="text-sm text-muted-foreground mb-2">
-            Monthly Service Investment
-          </p>
-          <p className="text-5xl font-bold text-janpro-navy mb-2">
-            {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
-          </p>
-          <p className="text-sm text-muted-foreground">per month</p>
+      <Card className="mb-6 border-0 bg-gradient-to-br from-janpro-navy via-janpro-navy to-[#003a9e] text-white shadow-glass-xl overflow-hidden">
+        <CardContent className="p-8 text-center relative">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,174,239,0.15),transparent_60%)]" />
+          <div className="relative">
+            <p className="text-sm text-white/70 mb-2">
+              Monthly Service Investment
+            </p>
+            <p className="text-5xl font-bold text-white mb-2">
+              {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
+            </p>
+            <p className="text-sm text-white/70">per month</p>
+          </div>
         </CardContent>
       </Card>
 
@@ -217,11 +220,10 @@ export default function PresentPage() {
       </div>
 
       {/* Action Button */}
-      <div className="sticky bottom-0 bg-white border-t p-4 -mx-6">
+      <div className="sticky bottom-0 bg-white/80 backdrop-blur-xl border-t border-border/50 p-4 -mx-6">
         <div className="max-w-4xl mx-auto flex justify-end">
           <Button
             size="lg"
-            className="bg-janpro-navy hover:bg-janpro-navy/90"
             onClick={() => router.push(`/quotes/${quote.id}/sign`)}
           >
             Client Signature &rarr;

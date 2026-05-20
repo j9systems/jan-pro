@@ -231,39 +231,40 @@ export function ReviewStep() {
         )}
 
         {/* Final Quote */}
-        <Card className="lg:col-span-2 border-janpro-navy/30 bg-janpro-navy/[0.02]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        <Card className="lg:col-span-2 border-0 bg-gradient-to-br from-janpro-navy via-janpro-navy to-[#003a9e] text-white shadow-glass-xl overflow-hidden">
+          <CardContent className="p-6 relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,174,239,0.12),transparent_60%)]" />
+            <div className="flex items-center justify-between relative">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
+                <p className="text-sm text-white/70 mb-1">
                   Monthly Service Investment
                 </p>
-                <p className="text-4xl font-bold text-janpro-navy">
+                <p className="text-4xl font-bold text-white">
                   {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">per month</p>
+                <p className="text-sm text-white/70 mt-1">per month</p>
               </div>
-              <div className="text-right space-y-1 text-sm">
+              <div className="text-right space-y-1 text-sm text-white/80">
                 <p>
-                  <span className="text-muted-foreground">Density:</span>{" "}
+                  <span className="text-white/60">Density:</span>{" "}
                   <span className="capitalize">{quote.facilityDensityTier}</span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Hours/Visit:</span>{" "}
+                  <span className="text-white/60">Hours/Visit:</span>{" "}
                   {quote.hoursPerVisit.toFixed(1)}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Total Sq Ft:</span>{" "}
+                  <span className="text-white/60">Total Sq Ft:</span>{" "}
                   {quote.totalSqft.toLocaleString()}
                 </p>
               </div>
             </div>
             {quote.notes && (
               <>
-                <Separator className="my-4" />
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Notes</p>
-                  <p className="text-sm whitespace-pre-wrap">{quote.notes}</p>
+                <Separator className="my-4 bg-white/20" />
+                <div className="relative">
+                  <p className="text-sm text-white/60 mb-1">Notes</p>
+                  <p className="text-sm text-white/90 whitespace-pre-wrap">{quote.notes}</p>
                 </div>
               </>
             )}

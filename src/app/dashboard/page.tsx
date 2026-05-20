@@ -14,9 +14,9 @@ function getStatusBadge(status: string) {
     case "draft":
       return <Badge variant="secondary">Draft</Badge>;
     case "presented":
-      return <Badge className="bg-janpro-cyan text-white">Presented</Badge>;
+      return <Badge className="border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan backdrop-blur-sm">Presented</Badge>;
     case "signed":
-      return <Badge className="bg-green-600 text-white">Signed</Badge>;
+      return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 backdrop-blur-sm">Signed</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -34,11 +34,10 @@ export default function DashboardPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-janpro-navy">My Quotes</h1>
+        <h1 className="text-2xl font-bold text-janpro-navy tracking-tight">My Quotes</h1>
         <Button
           onClick={handleNewQuote}
           size="lg"
-          className="bg-janpro-navy hover:bg-janpro-navy/90"
         >
           <Plus className="h-5 w-5 mr-2" />
           New Quote
@@ -57,7 +56,6 @@ export default function DashboardPage() {
             </p>
             <Button
               onClick={handleNewQuote}
-              className="bg-janpro-navy hover:bg-janpro-navy/90"
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Quote
@@ -70,7 +68,7 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
             .map((quote) => (
               <Link key={quote.id} href={`/quotes/${quote.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <Card className="hover:shadow-glass-lg hover:scale-[1.01] transition-all duration-300 cursor-pointer">
                   <CardContent className="flex items-center justify-between p-5">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-1">

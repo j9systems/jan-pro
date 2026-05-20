@@ -31,9 +31,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <TooltipProvider>
-          <div className="min-h-screen flex flex-col">
+          <div className="min-h-screen flex flex-col app-bg">
             <AppHeader />
-            <main className="flex-1 bg-white">
+            <main className="flex-1">
               {children}
             </main>
           </div>

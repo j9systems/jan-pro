@@ -127,7 +127,7 @@ function AISummaryCard() {
   const successCount = flags.filter((f) => f.type === "success").length;
 
   return (
-    <Card className="border-janpro-navy/30 bg-gradient-to-br from-slate-50 to-white">
+    <Card className="border-janpro-navy/20 bg-gradient-to-br from-white/80 to-janpro-navy-light/30 backdrop-blur-xl">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -380,7 +380,7 @@ export function SummaryStep() {
 
         {/* Right Column - Quote Output */}
         <div>
-          <Card className="border-janpro-navy/20">
+          <Card className="border-janpro-navy/15 bg-gradient-to-br from-white/90 to-janpro-navy-light/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-janpro-navy">
                 Quote Calculation

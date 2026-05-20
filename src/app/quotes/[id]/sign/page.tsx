@@ -112,7 +112,7 @@ export default function SignPage() {
       <Card className="mb-6">
         <CardContent className="p-6">
           <Label className="mb-3 block">Client Signature</Label>
-          <div className="border-2 border-dashed border-muted rounded-lg bg-white">
+          <div className="border-2 border-dashed border-muted rounded-xl bg-white/90 backdrop-blur-sm">
             <SignatureCanvas
               ref={sigRef}
               canvasProps={{
@@ -134,7 +134,7 @@ export default function SignPage() {
       <div className="flex justify-end">
         <Button
           size="lg"
-          className="bg-janpro-navy hover:bg-janpro-navy/90"
+          className=""
           onClick={handleConfirm}
         >
           Confirm Signature

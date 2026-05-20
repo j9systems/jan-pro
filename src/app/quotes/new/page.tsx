@@ -68,11 +68,11 @@ export default function NewQuotePage() {
               className="flex items-center gap-2 group"
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
                   index < currentStep
-                    ? "bg-janpro-cyan text-white"
+                    ? "bg-gradient-to-br from-janpro-cyan to-[#0090c8] text-white shadow-glow-cyan"
                     : index === currentStep
-                    ? "bg-janpro-navy text-white"
+                    ? "bg-gradient-to-br from-janpro-navy to-[#003a9e] text-white shadow-glow"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
@@ -94,8 +94,8 @@ export default function NewQuotePage() {
             </button>
             {index < STEPS.length - 1 && (
               <div
-                className={`flex-1 h-px mx-3 ${
-                  index < currentStep ? "bg-janpro-cyan" : "bg-muted"
+                className={`flex-1 h-[2px] mx-3 rounded-full transition-colors duration-300 ${
+                  index < currentStep ? "bg-gradient-to-r from-janpro-cyan to-janpro-cyan/50" : "bg-muted"
                 }`}
               />
             )}
@@ -104,12 +104,12 @@ export default function NewQuotePage() {
       </div>
 
       {/* Step Content */}
-      <div className="min-h-[500px]">
+      <div className="min-h-[500px] animate-fadeIn" key={currentStep}>
         <StepComponent />
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between mt-8 pt-6 border-t">
+      <div className="flex items-center justify-between mt-8 pt-6 border-t border-border/50">
         <Button
           variant="outline"
           onClick={handleBack}
@@ -123,7 +123,7 @@ export default function NewQuotePage() {
           <Button
             onClick={handleSaveAndPresent}
             size="lg"
-            className="bg-janpro-navy hover:bg-janpro-navy/90"
+            className=""
           >
             Save & Present
           </Button>
@@ -131,7 +131,7 @@ export default function NewQuotePage() {
           <Button
             onClick={handleContinue}
             size="lg"
-            className="bg-janpro-navy hover:bg-janpro-navy/90"
+            className=""
           >
             Continue
           </Button>

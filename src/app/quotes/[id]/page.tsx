@@ -153,21 +153,22 @@ export default function QuoteDetailPage() {
         </Card>
 
         {/* Quote Output */}
-        <Card className="lg:col-span-2 border-janpro-navy/30 bg-janpro-navy/[0.02]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+        <Card className="lg:col-span-2 border-0 bg-gradient-to-br from-janpro-navy via-janpro-navy to-[#003a9e] text-white shadow-glass-xl overflow-hidden">
+          <CardContent className="p-6 relative">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,174,239,0.12),transparent_60%)]" />
+            <div className="flex items-center justify-between mb-4 relative">
               <div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-white/70">
                   Monthly Service Investment
                 </p>
-                <p className="text-4xl font-bold text-janpro-navy">
+                <p className="text-4xl font-bold text-white">
                   {formatCurrency(
                     quote.quotedMonthly || quote.calculatedMonthly
                   )}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">per month</p>
+                <p className="text-xs text-white/70 mt-1">per month</p>
               </div>
-              <div className="text-right text-sm space-y-1">
+              <div className="text-right text-sm space-y-1 text-white/80">
                 <p>
                   Total Sq Ft: {quote.totalSqft.toLocaleString()}
                 </p>

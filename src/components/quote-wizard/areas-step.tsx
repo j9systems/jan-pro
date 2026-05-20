@@ -435,7 +435,7 @@ function AggregatesBar({ areas }: { areas: QuoteArea[] }) {
   const hardSqft = totalSqft - carpetSqft;
 
   return (
-    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-muted/50 rounded-lg text-sm">
+    <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-white/60 backdrop-blur-sm border border-white/60 rounded-xl shadow-glass text-sm">
       <div>
         <span className="text-muted-foreground">Areas:</span>{" "}
         <span className="font-semibold">{areas.length}</span>
@@ -1139,10 +1139,10 @@ export function AreasStep() {
       {quote.areas.length > 0 && <AggregatesBar areas={quote.areas} />}
 
       {quote.areas.length > 0 ? (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border border-white/60 rounded-xl overflow-hidden bg-white/50 backdrop-blur-xl shadow-glass">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow className="bg-janpro-navy-light/40">
                 <TableHead className="w-8 px-1" />
                 <TableHead className="text-xs">Floor Type</TableHead>
                 <TableHead className="text-xs">Name</TableHead>
