@@ -1,7 +1,10 @@
 import { createClient } from "./client";
 import type { Quote, QuoteArea } from "../types";
 
-const supabase = createClient();
+// Lazy client — only created when first called at runtime, not at build time
+function getSupabase() {
+  return createClient();
+}
 
 // Convert camelCase Quote to snake_case DB row
 function quoteToRow(quote: Quote, userId: string) {
@@ -150,12 +153,12 @@ function rowToArea(row: any): QuoteArea {
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
+  const { data } = await getSupabase().auth.getUser();
   return data.user?.id ?? null;
 }
 
 export async function fetchQuotes(): Promise<Quote[]> {
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await getSupabase()
     .from("quotes")
     .select("*")
     .order("updated_at", { ascending: false });
@@ -164,7 +167,7 @@ export async function fetchQuotes(): Promise<Quote[]> {
 
   // Fetch all areas for these quotes
   const quoteIds = rows.map((r) => r.id);
-  const { data: areaRows } = await supabase
+  const { data: areaRows } = await getSupabase()
     .from("areas")
     .select("*")
     .in("quote_id", quoteIds)
@@ -181,7 +184,7 @@ export async function fetchQuotes(): Promise<Quote[]> {
 }
 
 export async function fetchQuote(id: string): Promise<Quote | null> {
-  const { data: row, error } = await supabase
+  const { data: row, error } = await getSupabase()
     .from("quotes")
     .select("*")
     .eq("id", id)
@@ -189,7 +192,7 @@ export async function fetchQuote(id: string): Promise<Quote | null> {
 
   if (error || !row) return null;
 
-  const { data: areaRows } = await supabase
+  const { data: areaRows } = await getSupabase()
     .from("areas")
     .select("*")
     .eq("quote_id", id)
@@ -204,7 +207,7 @@ export async function saveQuoteToDb(quote: Quote): Promise<boolean> {
   if (!userId) return false;
 
   // Upsert quote
-  const { error: quoteError } = await supabase
+  const { error: quoteError } = await getSupabase()
     .from("quotes")
     .upsert(quoteToRow(quote, userId));
 
@@ -214,11 +217,11 @@ export async function saveQuoteToDb(quote: Quote): Promise<boolean> {
   }
 
   // Delete existing areas and re-insert (simplest for reordering)
-  await supabase.from("areas").delete().eq("quote_id", quote.id);
+  await getSupabase().from("areas").delete().eq("quote_id", quote.id);
 
   if (quote.areas.length > 0) {
     const areaRows = quote.areas.map((a) => areaToRow(a, quote.id));
-    const { error: areasError } = await supabase.from("areas").insert(areaRows);
+    const { error: areasError } = await getSupabase().from("areas").insert(areaRows);
     if (areasError) {
       console.error("Save areas error:", areasError);
       return false;
@@ -229,7 +232,7 @@ export async function saveQuoteToDb(quote: Quote): Promise<boolean> {
 }
 
 export async function deleteQuoteFromDb(id: string): Promise<boolean> {
-  const { error } = await supabase.from("quotes").delete().eq("id", id);
+  const { error } = await getSupabase().from("quotes").delete().eq("id", id);
   return !error;
 }
 
@@ -243,7 +246,7 @@ export async function uploadPhoto(
   const ext = file.name.split(".").pop() || "jpg";
   const path = `${userId}/${quoteId}/${areaId}/${Date.now()}.${ext}`;
 
-  const { error } = await supabase.storage
+  const { error } = await getSupabase().storage
     .from("area-media")
     .upload(path, file, { contentType: file.type });
 
@@ -256,7 +259,7 @@ export async function uploadPhoto(
 }
 
 export async function getSignedUrl(path: string): Promise<string | null> {
-  const { data, error } = await supabase.storage
+  const { data, error } = await getSupabase().storage
     .from("area-media")
     .createSignedUrl(path, 3600); // 1 hour
 
@@ -265,7 +268,7 @@ export async function getSignedUrl(path: string): Promise<string | null> {
 }
 
 export async function deletePhoto(path: string): Promise<boolean> {
-  const { error } = await supabase.storage
+  const { error } = await getSupabase().storage
     .from("area-media")
     .remove([path]);
   return !error;
