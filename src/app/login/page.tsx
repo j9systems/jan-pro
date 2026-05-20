@@ -25,19 +25,24 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: true,
-      },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setStep("code");
+      if (error) {
+        setError(error.message || "Failed to send code. Please try again.");
+      } else {
+        setStep("code");
+      }
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.");
     }
   };
 
