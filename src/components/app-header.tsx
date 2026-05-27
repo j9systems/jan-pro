@@ -16,17 +16,30 @@ export function AppHeader() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data }) => {
+    // First get the auth user
+    supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? null);
-      if (data.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, status")
-          .eq("id", data.user.id)
-          .single();
-        if (profileError) console.error("Profile fetch error:", profileError.message);
-        setRole(profile?.role ?? null);
-      }
+    });
+    // Then fetch profile separately — if this fails, menu still works
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      // Use raw fetch with the access token to avoid RLS issues
+      fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}&select=role,status`,
+        {
+          headers: {
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      )
+        .then((res) => res.json())
+        .then((rows) => {
+          if (Array.isArray(rows) && rows.length > 0) {
+            setRole(rows[0].role ?? null);
+          }
+        })
+        .catch((err) => console.error("Profile fetch error:", err));
     });
   }, []);
 
