@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,8 +25,27 @@ import type { Region } from "@/lib/types";
 export function FacilityStep() {
   const quote = useQuoteStore((s) => s.currentQuote);
   const updateQuote = useQuoteStore((s) => s.updateQuote);
+  const facilityTypes = useQuoteStore((s) => s.facilityTypes);
+  const regions = useQuoteStore((s) => s.regions);
+  const loadFacilityTypes = useQuoteStore((s) => s.loadFacilityTypes);
+  const loadRegions = useQuoteStore((s) => s.loadRegions);
+
+  useEffect(() => {
+    if (facilityTypes.length === 0) loadFacilityTypes();
+    if (regions.length === 0) loadRegions();
+  }, [facilityTypes.length, regions.length, loadFacilityTypes, loadRegions]);
 
   if (!quote) return null;
+
+  const facilityTypeOptions =
+    facilityTypes.length > 0
+      ? facilityTypes.filter((ft) => ft.isActive).map((ft) => ft.name)
+      : [...FACILITY_TYPES];
+
+  const regionOptions =
+    regions.length > 0
+      ? regions.filter((r) => r.isActive).map((r) => ({ value: r.key, label: r.franchiseDevelopmentName }))
+      : REGIONS;
 
   return (
     <div className="space-y-6">
@@ -49,7 +69,7 @@ export function FacilityStep() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FACILITY_TYPES.map((type) => (
+              {facilityTypeOptions.map((type) => (
                 <SelectItem key={type} value={type}>
                   {type}
                 </SelectItem>
@@ -68,7 +88,7 @@ export function FacilityStep() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REGIONS.map((r) => (
+              {regionOptions.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
                 </SelectItem>

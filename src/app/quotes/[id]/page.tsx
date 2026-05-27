@@ -1,15 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Presentation } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Edit, Presentation, Share2, X, UserPlus, Loader2 } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
+import {
+  fetchEstimateShares,
+  shareEstimate,
+  removeEstimateShare,
+  searchUsers,
+} from "@/lib/supabase/queries";
+import type { EstimateShare, UserProfile } from "@/lib/types";
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -24,12 +39,172 @@ function getStatusBadge(status: string) {
   }
 }
 
+function ShareModal({
+  quoteId,
+  open,
+  onOpenChange,
+}: {
+  quoteId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [shares, setShares] = useState<(EstimateShare & { email?: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimeout = React.useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    fetchEstimateShares(quoteId).then((data) => {
+      if (!cancelled) {
+        setShares(data);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [open, quoteId]);
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      const results = await searchUsers(query);
+      // Filter out already-shared users
+      const sharedIds = new Set(shares.map((s) => s.sharedWithUserId));
+      setSearchResults(results.filter((u) => !sharedIds.has(u.id)));
+      setSearching(false);
+    }, 300);
+  };
+
+  const handleAdd = async (user: UserProfile) => {
+    const success = await shareEstimate(quoteId, user.id, "view");
+    if (success) {
+      // Refresh shares
+      const updated = await fetchEstimateShares(quoteId);
+      setShares(updated);
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  };
+
+  const handleRemove = async (shareId: string) => {
+    const success = await removeEstimateShare(shareId);
+    if (success) {
+      setShares((prev) => prev.filter((s) => s.id !== shareId));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Share2 className="h-5 w-5" />
+            Share Quote
+          </DialogTitle>
+          <DialogDescription>
+            Share this quote with other users in your organization.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Search input */}
+          <div className="relative">
+            <Input
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search users by email or name..."
+              className="pr-8"
+            />
+            {searching && (
+              <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
+
+          {/* Search results */}
+          {searchResults.length > 0 && (
+            <div className="border rounded-md divide-y max-h-40 overflow-y-auto">
+              {searchResults.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between px-3 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{user.fullName || user.email}</p>
+                    {user.fullName && (
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 h-7 gap-1 text-xs"
+                    onClick={() => handleAdd(user)}
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    Add
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Existing shares */}
+          <div>
+            <p className="text-sm font-medium mb-2">Shared with</p>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : shares.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Not shared with anyone yet.
+              </p>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {shares.map((share) => (
+                  <div
+                    key={share.id}
+                    className="flex items-center justify-between px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <span>{share.email || share.sharedWithUserId}</span>
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {share.permission}
+                      </Badge>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(share.id)}
+                      className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function QuoteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const { savedQuotes, loadQuote, loadQuotes, setStep } = useQuoteStore();
   const [mounted, setMounted] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -95,6 +270,10 @@ export default function QuoteDetailPage() {
           <Button variant="outline" onClick={handleEdit} className="gap-2">
             <Edit className="h-4 w-4" />
             Edit
+          </Button>
+          <Button variant="outline" onClick={() => setShareOpen(true)} className="gap-2">
+            <Share2 className="h-4 w-4" />
+            Share
           </Button>
           <Button
             onClick={() => router.push(`/quotes/${id}/present`)}
@@ -313,6 +492,8 @@ export default function QuoteDetailPage() {
           </Card>
         )}
       </div>
+
+      <ShareModal quoteId={id} open={shareOpen} onOpenChange={setShareOpen} />
     </div>
   );
 }

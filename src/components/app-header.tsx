@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { User, LogOut, Settings } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 
 export function AppHeader() {
@@ -68,6 +69,16 @@ export function AppHeader() {
             <span className="hidden sm:inline text-white/80 max-w-[160px] truncate">
               {email || "Loading..."}
             </span>
+            {role === "sales_manager" && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-white/20 text-white/90 border-0">
+                Manager
+              </Badge>
+            )}
+            {role === "super_user" && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-janpro-cyan/30 text-cyan-200 border-0">
+                Admin
+              </Badge>
+            )}
           </div>
           {email && (
             <button

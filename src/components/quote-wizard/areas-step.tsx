@@ -69,6 +69,7 @@ import {
 import type { AreaMediaRecord } from "@/lib/supabase/queries";
 import {
   FLOOR_TYPES_V3,
+  FLOOR_RATES_SQFT_PER_HR as FLOOR_RATES,
   AREA_TYPES,
   ALL_UNIT_ITEMS,
   UNIT_ITEMS_BY_AREA_TYPE,
@@ -1188,6 +1189,143 @@ function DetailPanel({ area }: { area: QuoteArea }) {
   );
 }
 
+// --- Visits Per Week Badge (per-area override) ---
+
+function VisitsPerWeekBadge({ area }: { area: QuoteArea }) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(area.visitsPerWeek ?? ""));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const handleSave = () => {
+    setEditing(false);
+    const num = parseFloat(value);
+    if (!value.trim() || isNaN(num) || num <= 0) {
+      updateArea(area.id, { visitsPerWeek: undefined });
+      setValue("");
+    } else {
+      updateArea(area.id, { visitsPerWeek: num });
+      setValue(String(num));
+    }
+  };
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        type="number"
+        min={0}
+        step={0.5}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+        className="h-5 w-14 text-xs px-1"
+      />
+    );
+  }
+
+  if (area.visitsPerWeek != null) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className="text-xs px-1.5 py-0 border-cyan-400 text-cyan-700 bg-cyan-50 cursor-pointer hover:bg-cyan-100"
+            onClick={() => { setValue(String(area.visitsPerWeek ?? "")); setEditing(true); }}
+          >
+            {area.visitsPerWeek}x/wk
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Per-area visits/week override. Click to edit.</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return null;
+}
+
+// --- Production Rate Indicator ---
+
+function ProductionRateIndicator({ area }: { area: QuoteArea }) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(area.productionRateOverride ?? ""));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Determine current effective rate
+  const defaultRate =
+    area.floorType === "carpet" ? 3000 : (FLOOR_RATES[area.floorType] ?? 2500);
+  const effectiveRate = area.productionRateOverride && area.productionRateOverride > 0
+    ? area.productionRateOverride
+    : defaultRate;
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const handleSave = () => {
+    setEditing(false);
+    const num = parseInt(value);
+    if (!value.trim() || isNaN(num) || num <= 0) {
+      updateArea(area.id, { productionRateOverride: undefined });
+      setValue("");
+    } else {
+      updateArea(area.id, { productionRateOverride: num });
+      setValue(String(num));
+    }
+  };
+
+  if (editing) {
+    return (
+      <Input
+        ref={inputRef}
+        type="number"
+        min={0}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+        placeholder="sqft/hr"
+        className="h-5 w-20 text-xs px-1"
+      />
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => { setValue(String(area.productionRateOverride ?? "")); setEditing(true); }}
+          className={`inline-flex items-center justify-center h-4 w-4 rounded-full shrink-0 transition-colors ${
+            area.productionRateOverride
+              ? "bg-cyan-100 text-cyan-700 hover:bg-cyan-200"
+              : "bg-muted text-muted-foreground hover:bg-accent"
+          }`}
+        >
+          <Info className="h-2.5 w-2.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Rate: {effectiveRate.toLocaleString()} sqft/hr{area.productionRateOverride ? " (override)" : ""}. Click to change.</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 // --- Area Table Row ---
 
 function AreaRow({
@@ -1366,7 +1504,10 @@ function AreaRow({
 
         {/* Total Sq Ft */}
         <TableCell className="min-w-[80px] text-right font-medium text-xs">
-          {area.sqftTotal > 0 ? area.sqftTotal.toLocaleString() : "—"}
+          <div className="flex items-center justify-end gap-1">
+            {area.sqftTotal > 0 ? area.sqftTotal.toLocaleString() : "—"}
+            {area.sqftTotal > 0 && <ProductionRateIndicator area={area} />}
+          </div>
         </TableCell>
 
         {/* Indicators */}
@@ -1408,6 +1549,7 @@ function AreaRow({
                 </TooltipContent>
               </Tooltip>
             )}
+            <VisitsPerWeekBadge area={area} />
           </div>
         </TableCell>
 
