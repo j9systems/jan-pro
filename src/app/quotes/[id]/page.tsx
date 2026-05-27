@@ -63,9 +63,17 @@ function StatusSelector({
 
   const handleChange = async (newStatus: string) => {
     setOpen(false);
-    // Use RPC to bypass RLS issues on direct table updates
-    const supabase = (await import("@/lib/supabase/client")).createClient();
-    await supabase.rpc("update_quote_status", { qid: quoteId, new_status: newStatus });
+    try {
+      const supabase = (await import("@/lib/supabase/client")).createClient();
+      const { error } = await supabase.rpc("update_quote_status", { qid: quoteId, new_status: newStatus });
+      if (error) {
+        console.error("Status update error:", error.message, error);
+        alert(`Failed to update status: ${error.message}`);
+      }
+    } catch (err) {
+      console.error("Status update exception:", err);
+      alert("Failed to update status. Check console.");
+    }
     onChanged();
   };
 
