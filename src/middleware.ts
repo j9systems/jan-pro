@@ -56,11 +56,9 @@ export async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/api")
   ) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, status")
-      .eq("id", user.id)
-      .single();
+    // Use SECURITY DEFINER function to bypass RLS for profile lookup
+    const { data: profileRows } = await supabase.rpc("get_my_profile");
+    const profile = Array.isArray(profileRows) && profileRows.length > 0 ? profileRows[0] : null;
 
     // Block archived users
     if (profile?.status === "archived") {
@@ -71,19 +69,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Register role cookie — will be applied (and re-applied) on supabaseResponse
-    // Use profile role if available, otherwise default to super_user for the
-    // user we know exists (the profile query may fail due to RLS)
-    const role = profile?.role ?? "super_user";
-    const cookieOpts = {
-      path: "/",
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      maxAge: 60 * 60,
-    };
-    customCookies.push({ name: "x-user-role", value: role, options: cookieOpts });
-    supabaseResponse.cookies.set("x-user-role", role, cookieOpts);
+    // Set role cookie
+    if (profile?.role) {
+      const cookieOpts = {
+        path: "/",
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax" as const,
+        maxAge: 60 * 60,
+      };
+      customCookies.push({ name: "x-user-role", value: profile.role, options: cookieOpts });
+      supabaseResponse.cookies.set("x-user-role", profile.role, cookieOpts);
+    }
   }
 
   // Redirect authenticated users away from login
