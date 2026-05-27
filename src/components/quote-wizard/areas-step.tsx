@@ -64,6 +64,7 @@ import {
   createAreaMedia,
   fetchAreaMedia,
   deleteAreaMedia,
+  saveQuoteToDb,
 } from "@/lib/supabase/queries";
 import type { AreaMediaRecord } from "@/lib/supabase/queries";
 import {
@@ -491,6 +492,7 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
   const [media, setMedia] = useState<AreaMediaRecord[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load existing photos from Supabase on mount
   useEffect(() => {
@@ -508,18 +510,35 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || !quote) return;
+      setError(null);
+
       const userId = await getCurrentUserId();
-      if (!userId) return;
+      if (!userId) {
+        setError("Not signed in. Please refresh and try again.");
+        return;
+      }
 
       setUploading(true);
+
+      // Auto-save the quote + areas to DB first so FK constraints are satisfied
+      const saved = await saveQuoteToDb(quote);
+      if (!saved) {
+        setError("Failed to save quote. Please try again.");
+        setUploading(false);
+        return;
+      }
+
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
 
         // Upload to Supabase Storage
         const storagePath = await uploadPhoto(file, userId, quote.id, area.id);
-        if (!storagePath) continue;
+        if (!storagePath) {
+          setError("Failed to upload file. Check your connection.");
+          continue;
+        }
 
-        // Create DB record
+        // Create DB record (area now exists in DB from the save above)
         const record = await createAreaMedia(
           area.id,
           "photo",
@@ -530,6 +549,8 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
         );
         if (record) {
           setMedia((prev) => [...prev, record]);
+        } else {
+          setError("Photo uploaded but failed to save record. Try refreshing.");
         }
       }
       setUploading(false);
@@ -538,9 +559,12 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
   );
 
   const removeMedia = async (record: AreaMediaRecord) => {
+    setError(null);
     const success = await deleteAreaMedia(record.id, record.storagePath);
     if (success) {
       setMedia((prev) => prev.filter((m) => m.id !== record.id));
+    } else {
+      setError("Failed to delete photo. Try again.");
     }
   };
 
@@ -613,6 +637,9 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
           Upload
         </Button>
       </div>
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
     </div>
   );
 }

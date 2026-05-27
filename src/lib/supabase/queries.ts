@@ -388,14 +388,21 @@ export async function createAreaMedia(
 }
 
 export async function deleteAreaMedia(id: string, storagePath: string): Promise<boolean> {
-  // Delete from storage first
-  await deletePhoto(storagePath);
-  // Then delete the DB record
+  // Delete DB record first (this is the source of truth)
   const { error } = await getSupabase()
     .from("area_media")
     .delete()
     .eq("id", id);
-  return !error;
+  if (error) {
+    console.error("deleteAreaMedia DB error:", error);
+    return false;
+  }
+  // Then delete from storage (best-effort — orphaned files are low cost)
+  const storageDeleted = await deletePhoto(storagePath);
+  if (!storageDeleted) {
+    console.warn("Storage file not deleted (orphaned):", storagePath);
+  }
+  return true;
 }
 
 // ─── Facility Types ───────────────────────────────────────────────────────────
