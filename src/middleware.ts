@@ -42,6 +42,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Block archived users — sign them out and redirect to login
+  if (
+    user &&
+    !request.nextUrl.pathname.startsWith("/login") &&
+    !request.nextUrl.pathname.startsWith("/auth") &&
+    !request.nextUrl.pathname.startsWith("/api")
+  ) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.status === "archived") {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "archived");
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Redirect authenticated users away from login
   if (user && request.nextUrl.pathname === "/login") {
     const url = request.nextUrl.clone();

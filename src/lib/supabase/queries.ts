@@ -888,3 +888,62 @@ export async function updateUserProfile(data: Partial<UserProfile>): Promise<boo
   }
   return true;
 }
+
+// ─── Admin User Management ──────────────────────────────────────────────────
+
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: string;
+  status: string;
+  defaultRegionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAllUsers(): Promise<AdminUserRecord[]> {
+  const { data, error } = await getSupabase()
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error || !data) {
+    console.error("fetchAllUsers error:", error);
+    return [];
+  }
+
+  return data.map((row) => ({
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name,
+    role: row.role,
+    status: row.status ?? "active",
+    defaultRegionId: row.default_region_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export async function adminUpdateUser(
+  userId: string,
+  data: { role?: string; status?: string; fullName?: string; defaultRegionId?: string | null }
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: Record<string, any> = {};
+  if (data.role !== undefined) row.role = data.role;
+  if (data.status !== undefined) row.status = data.status;
+  if (data.fullName !== undefined) row.full_name = data.fullName;
+  if (data.defaultRegionId !== undefined) row.default_region_id = data.defaultRegionId;
+
+  const { error } = await getSupabase()
+    .from("profiles")
+    .update(row)
+    .eq("id", userId);
+
+  if (error) {
+    console.error("adminUpdateUser error:", error);
+    return false;
+  }
+  return true;
+}
