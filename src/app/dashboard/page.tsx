@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Calendar, ClipboardList, ArrowRight, Building2 } from "lucide-react";
@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
+
+type TabKey = "open" | "signed" | "lost" | "all";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "open", label: "Open" },
+  { key: "signed", label: "Signed" },
+  { key: "lost", label: "Lost" },
+  { key: "all", label: "All" },
+];
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -17,14 +26,30 @@ function getStatusBadge(status: string) {
       return <Badge className="border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan text-xs">Presented</Badge>;
     case "signed":
       return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-xs">Signed</Badge>;
+    case "lost":
+      return <Badge className="border-red-300/50 bg-red-50 text-red-600 text-xs">Lost</Badge>;
     default:
       return <Badge variant="outline" className="text-xs">{status}</Badge>;
+  }
+}
+
+function filterByTab(quotes: ReturnType<typeof useQuoteStore.getState>["savedQuotes"], tab: TabKey) {
+  switch (tab) {
+    case "open":
+      return quotes.filter((q) => q.status === "draft" || q.status === "presented");
+    case "signed":
+      return quotes.filter((q) => q.status === "signed");
+    case "lost":
+      return quotes.filter((q) => q.status === "lost");
+    case "all":
+      return quotes;
   }
 }
 
 export default function DashboardPage() {
   const router = useRouter();
   const { savedQuotes, initNewQuote, loadQuotes } = useQuoteStore();
+  const [activeTab, setActiveTab] = useState<TabKey>("open");
 
   useEffect(() => {
     loadQuotes();
@@ -38,6 +63,16 @@ export default function DashboardPage() {
   const totalQuotes = savedQuotes.length;
   const totalMonthly = savedQuotes.reduce((sum, q) => sum + (q.quotedMonthly || q.calculatedMonthly || 0), 0);
   const signedCount = savedQuotes.filter((q) => q.status === "signed").length;
+
+  const filteredQuotes = filterByTab(savedQuotes, activeTab)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const tabCounts: Record<TabKey, number> = {
+    open: savedQuotes.filter((q) => q.status === "draft" || q.status === "presented").length,
+    signed: savedQuotes.filter((q) => q.status === "signed").length,
+    lost: savedQuotes.filter((q) => q.status === "lost").length,
+    all: savedQuotes.length,
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -103,25 +138,47 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold text-foreground">Recent Quotes</h2>
-            <span className="text-sm text-muted-foreground">{totalQuotes} total</span>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 border-b border-border/50 mb-4">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  activeTab === tab.key
+                    ? "border-janpro-navy text-janpro-navy"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                }`}
+              >
+                {tab.label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.key
+                    ? "bg-janpro-navy/10 text-janpro-navy"
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  {tabCounts[tab.key]}
+                </span>
+              </button>
+            ))}
           </div>
-          {savedQuotes
-            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-            .map((quote, i) => (
+
+          {filteredQuotes.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              No {activeTab === "all" ? "" : activeTab} quotes found.
+            </div>
+          ) : (
+            filteredQuotes.map((quote, i) => (
               <Link key={quote.id} href={`/quotes/${quote.id}`}>
                 <div
                   className="group relative rounded-xl border border-white/60 bg-white/70 backdrop-blur-xl p-5 shadow-glass hover:shadow-glass-lg hover:border-janpro-navy/15 transition-all duration-300 cursor-pointer"
                   style={{ animationDelay: `${i * 60}ms` }}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Icon */}
                     <div className="hidden sm:flex items-center justify-center w-12 h-12 rounded-xl bg-janpro-navy-light/40 group-hover:bg-janpro-navy-light/60 transition-colors shrink-0">
                       <Building2 className="h-5 w-5 text-janpro-navy/70" />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2.5 mb-1">
                         <h3 className="font-semibold text-base truncate">
@@ -143,7 +200,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Price */}
                     <div className="text-right shrink-0">
                       <p className="text-xl font-bold text-janpro-navy tracking-tight">
                         {quote.quotedMonthly
@@ -153,12 +209,12 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground">per month</p>
                     </div>
 
-                    {/* Arrow */}
                     <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-janpro-navy group-hover:translate-x-0.5 transition-all shrink-0 hidden sm:block" />
                   </div>
                 </div>
               </Link>
-            ))}
+            ))
+          )}
         </div>
       )}
     </div>

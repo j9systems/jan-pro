@@ -23,20 +23,84 @@ import {
   shareEstimate,
   removeEstimateShare,
   searchUsers,
+  saveQuoteToDb,
 } from "@/lib/supabase/queries";
-import type { EstimateShare, UserProfile } from "@/lib/types";
+import type { EstimateShare, UserProfile, QuoteStatus } from "@/lib/types";
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft", color: "border-slate-300/50 bg-slate-100/80 text-slate-600" },
+  { value: "presented", label: "Presented", color: "border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan" },
+  { value: "signed", label: "Signed", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" },
+  { value: "lost", label: "Lost", color: "border-red-300/50 bg-red-50 text-red-600" },
+];
 
 function getStatusBadge(status: string) {
-  switch (status) {
-    case "draft":
-      return <Badge variant="secondary" className="text-sm">Draft</Badge>;
-    case "presented":
-      return <Badge className="bg-janpro-cyan text-white text-sm">Presented</Badge>;
-    case "signed":
-      return <Badge className="bg-green-600 text-white text-sm">Signed</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
+  const opt = STATUS_OPTIONS.find((o) => o.value === status);
+  if (!opt) return <Badge variant="outline" className="text-sm">{status}</Badge>;
+  return <Badge className={`text-sm ${opt.color}`}>{opt.label}</Badge>;
+}
+
+function StatusSelector({
+  quoteId,
+  currentStatus,
+  onChanged,
+}: {
+  quoteId: string;
+  currentStatus: string;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const handleChange = async (newStatus: string) => {
+    setOpen(false);
+    const store = useQuoteStore.getState();
+    const quote = store.savedQuotes.find((q) => q.id === quoteId);
+    if (!quote) return;
+    const updated = { ...quote, status: newStatus as QuoteStatus, updatedAt: new Date().toISOString() };
+    await saveQuoteToDb(updated);
+    onChanged();
+  };
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button type="button" onClick={() => setOpen(!open)} className="cursor-pointer">
+        {getStatusBadge(currentStatus)}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 w-40 rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-glass-lg overflow-hidden animate-fadeIn z-50">
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleChange(opt.value)}
+              className={`flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted/50 transition-colors ${
+                currentStatus === opt.value ? "bg-muted/30 font-medium" : ""
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${
+                opt.value === "draft" ? "bg-slate-400" :
+                opt.value === "presented" ? "bg-janpro-cyan" :
+                opt.value === "signed" ? "bg-emerald-500" :
+                "bg-red-500"
+              }`} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ShareModal({
@@ -259,7 +323,11 @@ export default function QuoteDetailPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-janpro-navy tracking-tight truncate">
               {quote.companyName || "Untitled Quote"}
             </h1>
-            {getStatusBadge(quote.status)}
+            <StatusSelector
+              quoteId={quote.id}
+              currentStatus={quote.status}
+              onChanged={() => loadQuotes()}
+            />
           </div>
           <p className="text-sm text-muted-foreground">
             Created {new Date(quote.createdAt).toLocaleDateString()} &bull;

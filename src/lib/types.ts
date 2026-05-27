@@ -161,7 +161,7 @@ export type Region =
 
 export type DensityTier = "low" | "medium" | "high";
 
-export type QuoteStatus = "draft" | "presented" | "signed";
+export type QuoteStatus = "draft" | "presented" | "signed" | "lost";
 
 export interface Quote {
   id: string;
