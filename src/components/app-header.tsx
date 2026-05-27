@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { User, LogOut, Settings } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 
 export function AppHeader() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export function AppHeader() {
       if (data.user) {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, status")
           .eq("id", data.user.id)
           .single();
         if (profileError) console.error("Profile fetch error:", profileError.message);
@@ -29,10 +30,24 @@ export function AppHeader() {
     });
   }, [supabase]);
 
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
   const handleSignOut = async () => {
+    setMenuOpen(false);
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  const isSuperUser = role === "super_user";
 
   return (
     <header className="relative bg-gradient-to-r from-janpro-navy via-[#002a78] to-[#003a9e] text-white shadow-lg">
@@ -52,42 +67,51 @@ export function AppHeader() {
             QuoteBuilder
           </span>
         </Link>
-        <div className="flex items-center gap-2">
-          {role === "super_user" && (
-            <Link
-              href="/settings/templates"
-              className="p-2 rounded-full hover:bg-white/10 transition-colors"
-              title="Settings"
-            >
-              <Settings className="h-4 w-4 text-white/60 hover:text-white" />
-            </Link>
-          )}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-sm">
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <User className="h-3.5 w-3.5" />
+
+        {/* Profile dropdown */}
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+          >
+            <User className="h-4 w-4 text-white/80" />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-white/95 backdrop-blur-xl shadow-glass-xl text-foreground overflow-hidden animate-fadeIn z-50">
+              {/* User info */}
+              <div className="px-4 py-3 border-b border-border/50">
+                <p className="text-sm font-medium truncate">{email || "Loading..."}</p>
+                {role && (
+                  <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                    {role === "super_user" ? "Admin" : role === "sales_manager" ? "Manager" : "Sales Rep"}
+                  </p>
+                )}
+              </div>
+
+              {/* Menu items */}
+              <div className="py-1">
+                {isSuperUser && (
+                  <Link
+                    href="/settings/templates"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                    Settings
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors w-full text-left"
+                >
+                  <LogOut className="h-4 w-4 text-muted-foreground" />
+                  Sign Out
+                </button>
+              </div>
             </div>
-            <span className="hidden sm:inline text-white/80 max-w-[160px] truncate">
-              {email || "Loading..."}
-            </span>
-            {role === "sales_manager" && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-white/20 text-white/90 border-0">
-                Manager
-              </Badge>
-            )}
-            {role === "super_user" && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-janpro-cyan/30 text-cyan-200 border-0">
-                Admin
-              </Badge>
-            )}
-          </div>
-          {email && (
-            <button
-              onClick={handleSignOut}
-              className="p-2 rounded-full hover:bg-white/10 transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="h-4 w-4 text-white/60 hover:text-white" />
-            </button>
           )}
         </div>
       </div>
