@@ -10,6 +10,7 @@ import {
   VISITS_PER_WEEK_OPTIONS,
   SPECIAL_SERVICES_CATALOG,
   FLOOR_TYPES_V3,
+  FLOOR_RATES_SQFT_PER_HR,
   AREA_TYPES,
 } from "@/lib/constants";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
@@ -104,6 +105,48 @@ export function ReviewStep() {
             )}
           </CardContent>
         </Card>
+
+        {/* Floor Type Summary */}
+        {(() => {
+          const floorSummary = new Map<string, { sqft: number; rate: number }>();
+          for (const area of quote.areas) {
+            const key = area.floorType;
+            const existing = floorSummary.get(key) || { sqft: 0, rate: FLOOR_RATES_SQFT_PER_HR[key] || 2500 };
+            existing.sqft += area.sqftTotal;
+            floorSummary.set(key, existing);
+          }
+          return (
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Floor Type Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">Floor Type</th>
+                        <th className="pb-2 font-medium text-right">Total Sq Ft</th>
+                        <th className="pb-2 font-medium text-right">Production Rate</th>
+                        <th className="pb-2 font-medium text-right">Estimated Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from(floorSummary.entries()).map(([key, { sqft, rate }]) => (
+                        <tr key={key} className="border-b last:border-0">
+                          <td className="py-2">{getFloorLabel(key)}</td>
+                          <td className="py-2 text-right">{sqft.toLocaleString()}</td>
+                          <td className="py-2 text-right">{rate.toLocaleString()} sq ft/hr</td>
+                          <td className="py-2 text-right">{(sqft / rate).toFixed(1)} hrs</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Areas */}
         <Card className="lg:col-span-2">
@@ -259,6 +302,25 @@ export function ReviewStep() {
                 </p>
               </div>
             </div>
+            {quote.state === "CA" && quote.cpswpaEnabled && (
+              <p className="text-xs text-white/60 mt-2 relative">
+                Includes $7.00 CPSWPA surcharge (California)
+              </p>
+            )}
+            {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
+              <>
+                <Separator className="my-4 bg-white/20" />
+                <div className="flex items-center justify-between relative">
+                  <div>
+                    <p className="text-sm text-white/70 mb-1">Premium Monthly (with Envira Shield)</p>
+                    <p className="text-3xl font-bold text-white">
+                      {formatCurrency(quote.premiumMonthly)}
+                    </p>
+                    <p className="text-sm text-white/70 mt-1">per month</p>
+                  </div>
+                </div>
+              </>
+            )}
             {quote.notes && (
               <>
                 <Separator className="my-4 bg-white/20" />

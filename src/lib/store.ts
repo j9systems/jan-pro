@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { Quote, QuoteArea, Porter, SpecialService } from "./types";
-import { fetchQuotes, fetchQuote, saveQuoteToDb, deleteQuoteFromDb } from "./supabase/queries";
+import type { Quote, QuoteArea, Porter, SpecialService, FacilityTypeRecord, RegionRecord, UserProfile } from "./types";
+import { fetchQuotes, fetchQuote, saveQuoteToDb, deleteQuoteFromDb, fetchFacilityTypes, fetchRegions, fetchUserProfile } from "./supabase/queries";
 import { calculateQuote } from "./calculator";
 import { generateId } from "./utils";
 
@@ -26,6 +26,10 @@ function createBlankArea(sortOrder: number): QuoteArea {
     aiFlags: [],
     aiGenerated: {},
     aiCitations: {},
+    visitsPerWeek: undefined,
+    productionRateOverride: undefined,
+    frozenChecklist: [],
+    areaTemplateId: undefined,
     minsPerVisit: 0,
     costPerMonth: 0,
   };
@@ -76,6 +80,10 @@ function createBlankQuote(): Quote {
     quotedMonthly: 0,
     notes: "",
     recordingTranscript: "",
+    regionId: undefined,
+    cpswpaEnabled: true,
+    premiumTreatmentEnabled: false,
+    premiumMonthly: 0,
     status: "draft",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -85,6 +93,9 @@ function createBlankQuote(): Quote {
 interface QuoteStore {
   currentQuote: Quote | null;
   savedQuotes: Quote[];
+  userProfile: UserProfile | null;
+  facilityTypes: FacilityTypeRecord[];
+  regions: RegionRecord[];
   currentStep: number;
   // Actions
   initNewQuote: () => void;
@@ -108,6 +119,9 @@ interface QuoteStore {
   loadQuote: (id: string) => Promise<void>;
   clearQuote: () => void;
   deleteQuote: (id: string) => Promise<void>;
+  loadUserProfile: () => Promise<void>;
+  loadFacilityTypes: () => Promise<void>;
+  loadRegions: () => Promise<void>;
 }
 
 export const useQuoteStore = create<QuoteStore>()(
@@ -115,6 +129,9 @@ export const useQuoteStore = create<QuoteStore>()(
       currentQuote: null,
       savedQuotes: [],
       currentStep: 0,
+      userProfile: null,
+      facilityTypes: [],
+      regions: [],
 
       initNewQuote: () => {
         set({ currentQuote: createBlankQuote(), currentStep: 0 });
@@ -348,6 +365,21 @@ export const useQuoteStore = create<QuoteStore>()(
         await deleteQuoteFromDb(id);
         const { savedQuotes } = get();
         set({ savedQuotes: savedQuotes.filter((q) => q.id !== id) });
+      },
+
+      loadUserProfile: async () => {
+        const profile = await fetchUserProfile();
+        set({ userProfile: profile });
+      },
+
+      loadFacilityTypes: async () => {
+        const types = await fetchFacilityTypes();
+        set({ facilityTypes: types });
+      },
+
+      loadRegions: async () => {
+        const regions = await fetchRegions();
+        set({ regions });
       },
     })
 );

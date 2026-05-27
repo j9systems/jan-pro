@@ -4,6 +4,8 @@ export const HOURLY_RATE = 31;
 export const INITIAL_CLEAN_RATE = 50;
 export const PORTER_RATE = 30;
 export const WEEKS_PER_MONTH = 4.33;
+export const CPSWPA_SURCHARGE = 7;
+export const PREMIUM_RATE_PER_SQFT = 0.12;
 
 export const FREQUENCY_HOURLY_RATES: Record<number, number> = {
   0.25: 31,
@@ -22,6 +24,9 @@ export const REGIONAL_MONTHLY_MINIMUMS: Record<string, Record<number, number>> =
   los_angeles: { 1: 295, 2: 375, 3: 475, 4: 575, 5: 675 },
   greater_bay_area: { 1: 300, 2: 400, 3: 525, 4: 650, 5: 800, 6: 950, 7: 1100 },
   silicon_valley_sf: { 1: 285, 2: 380, 3: 575 },
+  silicon_valley: { 1: 285, 2: 380, 3: 575 },
+  san_francisco: { 1: 300, 2: 400, 3: 525, 4: 650, 5: 800 },
+  madrock: { 1: 350, 2: 395, 3: 475, 4: 550, 5: 649 },
 };
 
 export const CARPET_RUN_RATES: Record<number, { lo: number; hi: number }> = {
@@ -37,13 +42,13 @@ export const CARPET_RUN_RATES: Record<number, { lo: number; hi: number }> = {
 // Floor rate lookup keyed by FloorType value
 export const FLOOR_RATES_SQFT_PER_HR: Record<string, number> = {
   carpet: 2600,
-  hard_floor_vct: 2500,
-  hard_floor_tile: 2500,
-  hard_floor_ceramic: 2500,
-  hard_floor_wood: 2500,
-  hard_floor_concrete: 2500,
-  terrazzo: 2500,
-  rubber: 2500,
+  tile: 2500,
+  hard_floor_lvt_vinyl: 2500,
+  composite_flooring: 2500,
+  laminate: 2800,
+  stained_concrete: 2400,
+  polished_concrete: 2400,
+  hardwood: 2500,
   other: 2500,
 };
 
@@ -61,6 +66,10 @@ export const UNIT_RATES_MINS_PER_UNIT: Record<string, number> = {
   picture_frames: 3,
   refrigerators: 10,
   microwaves: 5,
+  mats: 3,
+  fryers: 15,
+  dishes_sinks: 10,
+  equipment_surfaces: 5,
 };
 
 export const INITIAL_CLEAN_RATES: Record<string, number> = {
@@ -84,19 +93,21 @@ export const SPECIAL_SERVICE_RATES: Record<string, number> = {
   fridge_interior: 25,
   grout_light: 0.52,
   grout_heavy: 0.81,
+  machine_scrub: 0.15,
+  blinds_cleaning: 10,
 };
 
 // --- V3 Floor Types ---
 
 export const FLOOR_TYPES_V3: { value: FloorType; label: string }[] = [
   { value: "carpet", label: "Carpet" },
-  { value: "hard_floor_vct", label: "Hard Floor — VCT" },
-  { value: "hard_floor_tile", label: "Hard Floor — Tile" },
-  { value: "hard_floor_ceramic", label: "Hard Floor — Ceramic" },
-  { value: "hard_floor_wood", label: "Hard Floor — Wood" },
-  { value: "hard_floor_concrete", label: "Hard Floor — Concrete" },
-  { value: "terrazzo", label: "Terrazzo" },
-  { value: "rubber", label: "Rubber" },
+  { value: "tile", label: "Tile" },
+  { value: "hard_floor_lvt_vinyl", label: "Hard Floor (LVT/Vinyl)" },
+  { value: "composite_flooring", label: "Composite Flooring" },
+  { value: "laminate", label: "Laminate" },
+  { value: "stained_concrete", label: "Stained Concrete" },
+  { value: "polished_concrete", label: "Polished Concrete" },
+  { value: "hardwood", label: "Hardwood" },
   { value: "other", label: "Other" },
 ];
 
@@ -134,9 +145,13 @@ export const ALL_UNIT_ITEMS: { key: string; label: string }[] = [
   { key: "picture_frames", label: "Picture Frames" },
   { key: "refrigerators", label: "Refrigerators" },
   { key: "microwaves", label: "Microwaves" },
+  { key: "mats", label: "Mats" },
+  { key: "fryers", label: "Fryers" },
+  { key: "dishes_sinks", label: "Dishes / Sinks" },
+  { key: "equipment_surfaces", label: "Equipment Surfaces" },
 ];
 
-export const UNIT_ITEMS_BY_AREA_TYPE: Record<AreaType, string[]> = {
+export const UNIT_ITEMS_BY_AREA_TYPE: Record<string, string[]> = {
   restroom: ["toilets", "urinals", "mirrors", "sinks", "small_sudums", "large_sudums", "partitions"],
   office: ["blinds", "windows", "whiteboards", "picture_frames"],
   conference_room: ["blinds", "windows", "whiteboards", "picture_frames"],
@@ -150,6 +165,8 @@ export const UNIT_ITEMS_BY_AREA_TYPE: Record<AreaType, string[]> = {
   storage: [],
   common_area: ["blinds", "windows", "picture_frames"],
   other: [],
+  dealership: ["windows", "blinds", "mats", "mirrors", "picture_frames"],
+  restaurant: ["fryers", "dishes_sinks", "equipment_surfaces", "mats", "sinks", "refrigerators"],
 };
 
 // --- Existing ---
@@ -161,6 +178,11 @@ export const FACILITY_TYPES = [
   "Retail",
   "School/Education",
   "Gym/Fitness",
+  "Dealership",
+  "Restaurant",
+  "Church",
+  "Hotel",
+  "Preschool",
   "Other",
 ] as const;
 
@@ -169,6 +191,9 @@ export const REGIONS: { value: string; label: string }[] = [
   { value: "los_angeles", label: "Los Angeles" },
   { value: "greater_bay_area", label: "Greater Bay Area" },
   { value: "silicon_valley_sf", label: "Silicon Valley/SF" },
+  { value: "silicon_valley", label: "Silicon Valley" },
+  { value: "san_francisco", label: "San Francisco" },
+  { value: "madrock", label: "Madrock" },
 ];
 
 export const VISITS_PER_WEEK_OPTIONS: { value: number; label: string }[] = [
@@ -195,6 +220,8 @@ export const SPECIAL_SERVICES_CATALOG = [
   { key: "endure", label: "Endure Treatment", category: "EnviroShield", unit: "sqft" },
   { key: "grout_light", label: "Grout Cleaning (Light)", category: "Grout", unit: "sqft" },
   { key: "grout_heavy", label: "Grout Cleaning (Heavy)", category: "Grout", unit: "sqft" },
+  { key: "machine_scrub", label: "Machine Scrub", category: "Monthly Add-Ons", unit: "sqft" },
+  { key: "blinds_cleaning", label: "Blinds Cleaning", category: "Monthly Add-Ons", unit: "units" },
 ] as const;
 
 export const FREQUENCY_OPTIONS = [

@@ -9,6 +9,8 @@ import {
   WEEKS_PER_MONTH,
   REGIONAL_MONTHLY_MINIMUMS,
   SPECIAL_SERVICE_RATES,
+  CPSWPA_SURCHARGE,
+  PREMIUM_RATE_PER_SQFT,
 } from "./constants";
 import type { Quote, QuoteArea, InitialClean, Porter, SpecialService, DensityTier } from "./types";
 
@@ -46,7 +48,10 @@ export function calculateAreaMinsPerVisit(
   const totalSqft = area.sqftTotal;
 
   if (totalSqft > 0) {
-    if (area.floorType === "carpet") {
+    if (area.productionRateOverride && area.productionRateOverride > 0) {
+      // Use the per-area production rate override
+      mins += (totalSqft / area.productionRateOverride) * 60;
+    } else if (area.floorType === "carpet") {
       const carpetRate = getCarpetRate(visitsPerWeek, densityTier);
       mins += (totalSqft / carpetRate) * 60;
     } else {
@@ -127,12 +132,13 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
   const totalSqft = updatedAreas.reduce((sum, a) => sum + a.sqftTotal, 0);
   const facilityDensity = calculateFacilityDensity(totalSqft, quote.numEmployees);
   const facilityDensityTier = getDensityTier(facilityDensity);
-  const hourlyRate = getEffectiveHourlyRate(quote.visitsPerWeek);
 
-  // Calculate each area's mins and cost
+  // Calculate each area's mins and cost using per-area visitsPerWeek if set
   const areasWithCalcs = updatedAreas.map((area) => {
-    const minsPerVisit = calculateAreaMinsPerVisit(area, quote.visitsPerWeek, facilityDensityTier);
-    const costPerMonth = calculateAreaCostPerMonth(minsPerVisit, quote.visitsPerWeek, hourlyRate);
+    const areaVisitsPerWeek = area.visitsPerWeek ?? quote.visitsPerWeek;
+    const minsPerVisit = calculateAreaMinsPerVisit(area, areaVisitsPerWeek, facilityDensityTier);
+    const areaHourlyRate = getEffectiveHourlyRate(areaVisitsPerWeek);
+    const costPerMonth = calculateAreaCostPerMonth(minsPerVisit, areaVisitsPerWeek, areaHourlyRate);
     return { ...area, minsPerVisit, costPerMonth };
   });
 
@@ -175,6 +181,17 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     calculatedMonthly = regionalMin;
   }
 
+  // CPSWPA surcharge for California
+  if (quote.state === "CA" && quote.cpswpaEnabled) {
+    calculatedMonthly += CPSWPA_SURCHARGE;
+  }
+
+  // Premium treatment (Envira Shield sniper treatment)
+  let premiumMonthly = 0;
+  if (quote.premiumTreatmentEnabled) {
+    premiumMonthly = calculatedMonthly + (totalSqft * PREMIUM_RATE_PER_SQFT);
+  }
+
   return {
     areas: areasWithCalcs,
     totalSqft,
@@ -183,6 +200,7 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     hoursPerVisit,
     sutmTotal,
     calculatedMonthly: Math.round(calculatedMonthly * 100) / 100,
+    premiumMonthly: Math.round(premiumMonthly * 100) / 100,
     quotedMonthly: quote.quotedMonthly || Math.round(calculatedMonthly * 100) / 100,
     initialCleanData: {
       ...quote.initialCleanData,

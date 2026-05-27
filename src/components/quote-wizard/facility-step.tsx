@@ -78,7 +78,7 @@ export function FacilityStep() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="numEmployees">Number of Employees</Label>
+          <Label htmlFor="numEmployees">Estimated Foot Traffic (per day)</Label>
           <Input
             id="numEmployees"
             type="number"
@@ -88,6 +88,9 @@ export function FacilityStep() {
             onChange={(e) => updateQuote({ numEmployees: parseInt(e.target.value) || 0 })}
             placeholder="0"
           />
+          <p className="text-xs text-muted-foreground">
+            Average daily count — customers, congregants, students, employees, etc.
+          </p>
         </div>
 
         <div className="space-y-2">

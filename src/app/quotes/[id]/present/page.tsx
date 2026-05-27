@@ -90,8 +90,29 @@ export default function PresentPage() {
             {formatCurrency(quote.quotedMonthly || quote.calculatedMonthly)}
           </p>
           <p className="text-muted-foreground">per month</p>
+          {quote.state === "CA" && quote.cpswpaEnabled && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Includes $7.00 CPSWPA surcharge (California)
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Premium Monthly with Envira Shield */}
+      {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
+        <div className="relative rounded-2xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-glass-lg p-10 mb-8 text-center overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-janpro-navy-light/30 to-transparent" />
+          <div className="relative">
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Premium Monthly (with Envira Shield)
+            </p>
+            <p className="text-5xl md:text-6xl font-bold text-janpro-navy tracking-tight mb-2">
+              {formatCurrency(quote.premiumMonthly)}
+            </p>
+            <p className="text-muted-foreground">per month</p>
+          </div>
+        </div>
+      )}
 
       {/* Area Breakdown */}
       <Card className="mb-6">

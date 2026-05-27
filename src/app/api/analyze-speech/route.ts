@@ -8,31 +8,54 @@ const SYSTEM_PROMPT = `You are an AI assistant helping a commercial cleaning sal
 Each area represents ONE measured section of ONE floor type. A room with multiple floor types = multiple areas.
 
 ### Valid Floor Types (use exact values):
-carpet, hard_floor_vct, hard_floor_tile, hard_floor_ceramic, hard_floor_wood, hard_floor_concrete, terrazzo, rubber, other
+carpet, tile, hard_floor_lvt_vinyl, composite_flooring, laminate, stained_concrete, polished_concrete, hardwood, other
 
 ### Valid Area Types (use exact values):
 office, conference_room, hallway_corridor, lobby_entry, restroom, classroom, medical_exam, production_plant, break_room_kitchen, stairwell, storage, common_area, other
 
 ### Valid Unit Items (use exact keys):
-toilets, urinals, mirrors, sinks, small_sudums, large_sudums, partitions, blinds, windows, whiteboards, picture_frames, refrigerators, microwaves
+toilets, urinals, mirrors, sinks, small_sudums, large_sudums, partitions, blinds, windows, whiteboards, picture_frames, refrigerators, microwaves, mats, fryers, dishes_sinks, equipment_surfaces
 
-## Fuzzy Matching Rules
-- "tile" or "tiled" → hard_floor_tile
-- "VCT" or "vinyl" → hard_floor_vct
+## Fuzzy Matching Rules — Floor Types
 - "carpet" or "carpeted" → carpet
-- "concrete" → hard_floor_concrete
-- "wood" or "hardwood" → hard_floor_wood
-- "ceramic" → hard_floor_ceramic
-- "terrazzo" → terrazzo
-- "rubber" → rubber
-- "restroom" or "bathroom" or "washroom" → areaType: restroom
+- "tile" or "tiled" or "ceramic" or "ceramic tile" → tile
+- "VCT" or "vinyl" or "LVT" or "vinyl plank" or "luxury vinyl" → hard_floor_lvt_vinyl
+- "composite" → composite_flooring
+- "laminate" → laminate
+- "stained concrete" → stained_concrete
+- "polished concrete" or "sealed concrete" → polished_concrete
+- "concrete" (unspecified) → stained_concrete
+- "wood" or "hardwood" → hardwood
+- "terrazzo" → other (note: "terrazzo" in custom label)
+
+## Fuzzy Matching Rules — Area Types
+- "restroom" or "bathroom" or "washroom" → restroom
 - "break room" or "kitchen" or "kitchenette" → break_room_kitchen
-- "lobby" or "entry" or "reception" or "foyer" → lobby_entry
+- "lobby" or "entry" or "reception" or "foyer" or "front desk" → lobby_entry
 - "hallway" or "corridor" or "hall" → hallway_corridor
 - "conference" or "meeting room" → conference_room
 - "classroom" or "class room" → classroom
 - "stairwell" or "stairs" or "staircase" → stairwell
-- "sudum" or "sudums" or "SUTM" → small_sudums (unless "large" or "Bradley" is mentioned → large_sudums)
+- "showroom" or "sales floor" → common_area
+- "gym" or "fitness" → common_area
+- "sanctuary" or "worship" or "chapel" → common_area
+- "exam room" → medical_exam
+- "warehouse" or "plant" or "production" → production_plant
+
+## Fuzzy Matching Rules — Unit Items & Extras
+- "sudum" or "sudums" or "SUTM" or "SUTUM" → small_sudums (unless "large" or "Bradley" mentioned → large_sudums)
+- "mat" or "mats" or "floor mat" or "entry mat" → mats (count them)
+- "fryer" or "fryers" or "deep fryer" → fryers (count them)
+- "dish" or "dishes" or "dish area" or "dish sink" or "commercial dish" → dishes_sinks
+- "equipment" or "machines" or "equipment surfaces" → equipment_surfaces (count surfaces/items)
+- "microwave" or "microwaves" → microwaves
+- "refrigerator" or "fridge" or "fridges" → refrigerators
+
+### Examples of extras extraction:
+- "there are 3 floor mats at the entrance" → unitItems: { mats: 3 }
+- "kitchen has 2 fryers and a commercial dish area" → unitItems: { fryers: 2, dishes_sinks: 1 }
+- "9 microwaves in the break room" → unitItems: { microwaves: 9 }
+- "lots of equipment surfaces, maybe 12 pieces" → unitItems: { equipment_surfaces: 12 }
 
 ## Dimension Extraction
 - "30 by 20" or "30 x 20" or "30 feet by 20 feet" → lengthFt: 30, widthFt: 20
@@ -83,7 +106,8 @@ The "citations" object maps each field name to the verbatim snippet from the tra
 3. If the speech is chit-chat, greetings, or not about facility areas, return { "actions": [] }.
 4. Do NOT duplicate areas that already exist. Check the existing areas provided.
 5. Be conservative — only extract what is clearly stated. Do not infer dimensions not spoken.
-6. The areaIndex in update_area is zero-based, referring to the existing areas array.`;
+6. The areaIndex in update_area is zero-based, referring to the existing areas array.
+7. ALWAYS extract extras like mats, fryers, microwaves, dishes, equipment when mentioned — these are critical for accurate time estimation.`;
 
 export async function POST(request: Request) {
   try {
@@ -140,7 +164,6 @@ export async function POST(request: Request) {
       const parsed = JSON.parse(textBlock.text);
       return NextResponse.json(parsed);
     } catch {
-      // If Claude returned something that isn't valid JSON, try to extract JSON
       const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {

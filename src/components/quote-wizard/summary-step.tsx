@@ -464,6 +464,13 @@ export function SummaryStep() {
                 </div>
               )}
 
+              {quote.state === "CA" && quote.cpswpaEnabled && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">CPSWPA Surcharge (CA)</span>
+                  <span>$7.00</span>
+                </div>
+              )}
+
               <Separator />
 
               <div className="space-y-2">
@@ -496,6 +503,21 @@ export function SummaryStep() {
                   </div>
                 )}
               </div>
+
+              {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-medium">Premium Monthly</span>
+                      <p className="text-xs text-muted-foreground">Standard + Envira Shield</p>
+                    </div>
+                    <span className="text-2xl font-bold text-janpro-navy">
+                      {formatCurrency(quote.premiumMonthly)}
+                    </span>
+                  </div>
+                </>
+              )}
 
               {quote.initialCleanData.enabled &&
                 quote.initialCleanData.totalCost > 0 && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,37 @@ function InitialCleanSection() {
   const quote = useQuoteStore((s) => s.currentQuote);
   const updateQuote = useQuoteStore((s) => s.updateQuote);
 
-  if (!quote) return null;
+  const data = quote?.initialCleanData;
 
-  const data = quote.initialCleanData;
+  // Auto-populate IC fields on first enable
+  useEffect(() => {
+    if (!quote || !data) return;
+    if (
+      data.enabled &&
+      data.officesSqft === 0 &&
+      data.machineScrubSqft === 0 &&
+      data.showerCount === 0 &&
+      data.blindCount === 0 &&
+      data.sutmCount === 0 &&
+      data.additionalServices === 0 &&
+      quote.areas.length > 0
+    ) {
+      const totalSqft = quote.areas.reduce((sum, a) => sum + a.sqftTotal, 0);
+      const totalSutm = quote.areas.reduce(
+        (sum, a) =>
+          sum +
+          (a.unitItems.small_sudums || 0) +
+          (a.unitItems.large_sudums || 0),
+        0
+      );
+      updateQuote({
+        initialCleanData: { ...data, officesSqft: totalSqft, sutmCount: totalSutm },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.enabled]);
+
+  if (!quote || !data) return null;
 
   const updateIC = (partial: Partial<InitialClean>) => {
     updateQuote({
@@ -446,6 +474,28 @@ function SpecialServicesSection() {
   );
 }
 
+function EnviraShieldSection() {
+  const quote = useQuoteStore((s) => s.currentQuote);
+  const updateQuote = useQuoteStore((s) => s.updateQuote);
+
+  if (!quote) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-5 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold">Envira Shield Sniper Treatment</h3>
+          <p className="text-sm text-muted-foreground">Premium disinfectant application — adds to monthly quote</p>
+        </div>
+        <Switch
+          checked={quote.premiumTreatmentEnabled}
+          onCheckedChange={(checked) => updateQuote({ premiumTreatmentEnabled: checked })}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AddOnsStep() {
   return (
     <div className="space-y-6">
@@ -461,6 +511,9 @@ export function AddOnsStep() {
       <InitialCleanSection />
       <PorterSection />
       <SpecialServicesSection />
+
+      {/* Envira Shield Premium Treatment */}
+      <EnviraShieldSection />
     </div>
   );
 }

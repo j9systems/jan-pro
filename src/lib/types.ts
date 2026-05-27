@@ -1,12 +1,12 @@
 export type FloorType =
   | "carpet"
-  | "hard_floor_vct"
-  | "hard_floor_tile"
-  | "hard_floor_ceramic"
-  | "hard_floor_wood"
-  | "hard_floor_concrete"
-  | "terrazzo"
-  | "rubber"
+  | "tile"
+  | "hard_floor_lvt_vinyl"
+  | "composite_flooring"
+  | "laminate"
+  | "stained_concrete"
+  | "polished_concrete"
+  | "hardwood"
   | "other";
 
 export type AreaType =
@@ -31,6 +31,12 @@ export interface AIFlag {
   detail: string;
 }
 
+export interface ChecklistSnapshot {
+  itemId: string;
+  task: string;
+  frequency: "nightly" | "weekly" | "monthly" | "excluded";
+}
+
 export interface QuoteArea {
   id: string;
   sortOrder: number;
@@ -52,9 +58,68 @@ export interface QuoteArea {
   aiFlags: AIFlag[];
   aiGenerated: Record<string, boolean>;
   aiCitations: Record<string, string>;
+  visitsPerWeek?: number;
+  productionRateOverride?: number;
+  frozenChecklist: ChecklistSnapshot[];
+  areaTemplateId?: string;
   // calculated
   minsPerVisit: number;
   costPerMonth: number;
+}
+
+export interface FacilityTypeRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export interface AreaTemplate {
+  id: string;
+  facilityTypeId: string;
+  name: string;
+  displayOrder: number;
+  defaultFloorType: string | null;
+  isActive: boolean;
+}
+
+export interface ChecklistItem {
+  id: string;
+  areaTemplateId: string;
+  task: string;
+  defaultFrequency: "nightly" | "weekly" | "monthly";
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface AreaOverride {
+  id: string;
+  areaId: string;
+  checklistItemId: string;
+  overriddenFrequency: "nightly" | "weekly" | "monthly" | "excluded";
+}
+
+export interface EstimateShare {
+  id: string;
+  quoteId: string;
+  sharedWithUserId: string;
+  permission: "view" | "edit";
+}
+
+export interface RegionRecord {
+  id: string;
+  key: string;
+  operatingEntity: string;
+  franchiseDevelopmentName: string;
+  isActive: boolean;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: "sales_rep" | "sales_manager" | "super_user";
+  defaultRegionId: string | null;
 }
 
 export interface Porter {
@@ -89,7 +154,10 @@ export type Region =
   | "southern_california"
   | "los_angeles"
   | "greater_bay_area"
-  | "silicon_valley_sf";
+  | "silicon_valley_sf"
+  | "silicon_valley"
+  | "san_francisco"
+  | "madrock";
 
 export type DensityTier = "low" | "medium" | "high";
 
@@ -108,6 +176,7 @@ export interface Quote {
   // Facility
   facilityType: string;
   region: Region;
+  regionId?: string;
   numEmployees: number;
   numFloors: number;
   numRestrooms: number;
@@ -119,6 +188,9 @@ export interface Quote {
   initialClean: boolean;
   specialEquipment: boolean;
   restrictedClean: boolean;
+  cpswpaEnabled: boolean;
+  premiumTreatmentEnabled: boolean;
+  premiumMonthly: number;
   // Areas
   areas: QuoteArea[];
   // Add-ons

@@ -1,5 +1,16 @@
 import { createClient } from "./client";
-import type { Quote, QuoteArea } from "../types";
+import type {
+  Quote,
+  QuoteArea,
+  ChecklistSnapshot,
+  FacilityTypeRecord,
+  AreaTemplate,
+  ChecklistItem,
+  AreaOverride,
+  EstimateShare,
+  RegionRecord,
+  UserProfile,
+} from "../types";
 
 // Lazy client — only created when first called at runtime, not at build time
 function getSupabase() {
@@ -20,6 +31,7 @@ function quoteToRow(quote: Quote, userId: string) {
     state: quote.state,
     facility_type: quote.facilityType,
     region: quote.region,
+    region_id: quote.regionId || null,
     num_employees: quote.numEmployees,
     num_floors: quote.numFloors,
     num_restrooms: quote.numRestrooms,
@@ -31,6 +43,9 @@ function quoteToRow(quote: Quote, userId: string) {
     initial_clean: quote.initialClean,
     special_equipment: quote.specialEquipment,
     restricted_clean: quote.restrictedClean,
+    cpswpa_enabled: quote.cpswpaEnabled,
+    premium_treatment_enabled: quote.premiumTreatmentEnabled,
+    premium_monthly: quote.premiumMonthly,
     total_sqft: quote.totalSqft,
     facility_density: quote.facilityDensity,
     facility_density_tier: quote.facilityDensityTier,
@@ -63,6 +78,7 @@ function rowToQuote(row: any, areas: QuoteArea[]): Quote {
     state: row.state,
     facilityType: row.facility_type,
     region: row.region,
+    regionId: row.region_id ?? undefined,
     numEmployees: row.num_employees,
     numFloors: row.num_floors,
     numRestrooms: row.num_restrooms,
@@ -74,6 +90,9 @@ function rowToQuote(row: any, areas: QuoteArea[]): Quote {
     initialClean: row.initial_clean,
     specialEquipment: row.special_equipment,
     restrictedClean: row.restricted_clean,
+    cpswpaEnabled: row.cpswpa_enabled ?? true,
+    premiumTreatmentEnabled: row.premium_treatment_enabled ?? false,
+    premiumMonthly: Number(row.premium_monthly ?? 0),
     areas,
     porters: row.porters || [],
     initialCleanData: row.initial_clean_data || {
@@ -119,6 +138,10 @@ function areaToRow(area: QuoteArea, quoteId: string) {
     ai_flags: area.aiFlags,
     ai_generated: area.aiGenerated,
     ai_citations: area.aiCitations,
+    visits_per_week: area.visitsPerWeek ?? null,
+    production_rate_override: area.productionRateOverride ?? null,
+    frozen_checklist: area.frozenChecklist,
+    area_template_id: area.areaTemplateId ?? null,
     mins_per_visit: area.minsPerVisit,
     cost_per_month: area.costPerMonth,
   };
@@ -147,6 +170,10 @@ function rowToArea(row: any): QuoteArea {
     aiFlags: row.ai_flags || [],
     aiGenerated: row.ai_generated || {},
     aiCitations: row.ai_citations || {},
+    visitsPerWeek: row.visits_per_week ?? undefined,
+    productionRateOverride: row.production_rate_override ?? undefined,
+    frozenChecklist: (row.frozen_checklist as ChecklistSnapshot[]) || [],
+    areaTemplateId: row.area_template_id ?? undefined,
     minsPerVisit: Number(row.mins_per_visit),
     costPerMonth: Number(row.cost_per_month),
   };
@@ -272,4 +299,488 @@ export async function deletePhoto(path: string): Promise<boolean> {
     .from("area-media")
     .remove([path]);
   return !error;
+}
+
+// ─── Facility Types ───────────────────────────────────────────────────────────
+
+export async function fetchFacilityTypes(): Promise<FacilityTypeRecord[]> {
+  const { data, error } = await getSupabase()
+    .from("facility_types")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? null,
+    isActive: row.is_active,
+  }));
+}
+
+export async function createFacilityType(
+  name: string,
+  description?: string
+): Promise<FacilityTypeRecord | null> {
+  const { data, error } = await getSupabase()
+    .from("facility_types")
+    .insert({ name, description: description ?? null })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("Create facility type error:", error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description ?? null,
+    isActive: data.is_active,
+  };
+}
+
+export async function updateFacilityType(
+  id: string,
+  data: Partial<FacilityTypeRecord>
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: Record<string, any> = {};
+  if (data.name !== undefined) row.name = data.name;
+  if (data.description !== undefined) row.description = data.description;
+  if (data.isActive !== undefined) row.is_active = data.isActive;
+
+  const { error } = await getSupabase()
+    .from("facility_types")
+    .update(row)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Update facility type error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteFacilityType(id: string): Promise<boolean> {
+  // Soft delete: set is_active = false
+  const { error } = await getSupabase()
+    .from("facility_types")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Delete facility type error:", error);
+    return false;
+  }
+  return true;
+}
+
+// ─── Area Templates ───────────────────────────────────────────────────────────
+
+export async function fetchAreaTemplates(facilityTypeId: string): Promise<AreaTemplate[]> {
+  const { data, error } = await getSupabase()
+    .from("area_templates")
+    .select("*")
+    .eq("facility_type_id", facilityTypeId)
+    .eq("is_active", true)
+    .order("display_order");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    facilityTypeId: row.facility_type_id,
+    name: row.name,
+    displayOrder: row.display_order,
+    defaultFloorType: row.default_floor_type ?? null,
+    isActive: row.is_active,
+  }));
+}
+
+export async function createAreaTemplate(
+  facilityTypeId: string,
+  name: string,
+  displayOrder: number
+): Promise<AreaTemplate | null> {
+  const { data, error } = await getSupabase()
+    .from("area_templates")
+    .insert({ facility_type_id: facilityTypeId, name, display_order: displayOrder })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("Create area template error:", error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    facilityTypeId: data.facility_type_id,
+    name: data.name,
+    displayOrder: data.display_order,
+    defaultFloorType: data.default_floor_type ?? null,
+    isActive: data.is_active,
+  };
+}
+
+export async function updateAreaTemplate(
+  id: string,
+  data: Partial<AreaTemplate>
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: Record<string, any> = {};
+  if (data.name !== undefined) row.name = data.name;
+  if (data.displayOrder !== undefined) row.display_order = data.displayOrder;
+  if (data.defaultFloorType !== undefined) row.default_floor_type = data.defaultFloorType;
+  if (data.isActive !== undefined) row.is_active = data.isActive;
+  if (data.facilityTypeId !== undefined) row.facility_type_id = data.facilityTypeId;
+
+  const { error } = await getSupabase()
+    .from("area_templates")
+    .update(row)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Update area template error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteAreaTemplate(id: string): Promise<boolean> {
+  // Soft delete
+  const { error } = await getSupabase()
+    .from("area_templates")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Delete area template error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function reorderAreaTemplates(
+  updates: { id: string; displayOrder: number }[]
+): Promise<boolean> {
+  const supabase = getSupabase();
+  for (const update of updates) {
+    const { error } = await supabase
+      .from("area_templates")
+      .update({ display_order: update.displayOrder })
+      .eq("id", update.id);
+
+    if (error) {
+      console.error("Reorder area templates error:", error);
+      return false;
+    }
+  }
+  return true;
+}
+
+// ─── Checklist Items ──────────────────────────────────────────────────────────
+
+export async function fetchChecklistItems(areaTemplateId: string): Promise<ChecklistItem[]> {
+  const { data, error } = await getSupabase()
+    .from("checklist_items")
+    .select("*")
+    .eq("area_template_id", areaTemplateId)
+    .eq("is_active", true)
+    .order("display_order");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    areaTemplateId: row.area_template_id,
+    task: row.task,
+    defaultFrequency: row.default_frequency,
+    displayOrder: row.display_order,
+    isActive: row.is_active,
+  }));
+}
+
+export async function createChecklistItem(
+  areaTemplateId: string,
+  task: string,
+  frequency: string,
+  displayOrder: number
+): Promise<ChecklistItem | null> {
+  const { data, error } = await getSupabase()
+    .from("checklist_items")
+    .insert({
+      area_template_id: areaTemplateId,
+      task,
+      default_frequency: frequency,
+      display_order: displayOrder,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("Create checklist item error:", error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    areaTemplateId: data.area_template_id,
+    task: data.task,
+    defaultFrequency: data.default_frequency,
+    displayOrder: data.display_order,
+    isActive: data.is_active,
+  };
+}
+
+export async function updateChecklistItem(
+  id: string,
+  data: Partial<ChecklistItem>
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: Record<string, any> = {};
+  if (data.task !== undefined) row.task = data.task;
+  if (data.defaultFrequency !== undefined) row.default_frequency = data.defaultFrequency;
+  if (data.displayOrder !== undefined) row.display_order = data.displayOrder;
+  if (data.isActive !== undefined) row.is_active = data.isActive;
+  if (data.areaTemplateId !== undefined) row.area_template_id = data.areaTemplateId;
+
+  const { error } = await getSupabase()
+    .from("checklist_items")
+    .update(row)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Update checklist item error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteChecklistItem(id: string): Promise<boolean> {
+  // Soft delete
+  const { error } = await getSupabase()
+    .from("checklist_items")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Delete checklist item error:", error);
+    return false;
+  }
+  return true;
+}
+
+// ─── Area Overrides ───────────────────────────────────────────────────────────
+
+export async function fetchAreaOverrides(areaId: string): Promise<AreaOverride[]> {
+  const { data, error } = await getSupabase()
+    .from("area_overrides")
+    .select("*")
+    .eq("area_id", areaId);
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    areaId: row.area_id,
+    checklistItemId: row.checklist_item_id,
+    overriddenFrequency: row.overridden_frequency,
+  }));
+}
+
+export async function upsertAreaOverride(
+  areaId: string,
+  checklistItemId: string,
+  frequency: string
+): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("area_overrides")
+    .upsert(
+      {
+        area_id: areaId,
+        checklist_item_id: checklistItemId,
+        overridden_frequency: frequency,
+      },
+      { onConflict: "area_id,checklist_item_id" }
+    );
+
+  if (error) {
+    console.error("Upsert area override error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteAreaOverride(id: string): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("area_overrides")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Delete area override error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function resetAreaOverrides(areaId: string): Promise<boolean> {
+  // Delete all overrides for an area
+  const { error } = await getSupabase()
+    .from("area_overrides")
+    .delete()
+    .eq("area_id", areaId);
+
+  if (error) {
+    console.error("Reset area overrides error:", error);
+    return false;
+  }
+  return true;
+}
+
+// ─── Regions ──────────────────────────────────────────────────────────────────
+
+export async function fetchRegions(): Promise<RegionRecord[]> {
+  const { data, error } = await getSupabase()
+    .from("regions")
+    .select("*")
+    .eq("is_active", true)
+    .order("operating_entity");
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    key: row.key,
+    operatingEntity: row.operating_entity,
+    franchiseDevelopmentName: row.franchise_development_name,
+    isActive: row.is_active,
+  }));
+}
+
+// ─── Sharing ──────────────────────────────────────────────────────────────────
+
+export async function fetchEstimateShares(
+  quoteId: string
+): Promise<(EstimateShare & { email?: string })[]> {
+  const { data, error } = await getSupabase()
+    .from("estimate_shares")
+    .select("*, profiles:shared_with_user_id(email)")
+    .eq("quote_id", quoteId);
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    quoteId: row.quote_id,
+    sharedWithUserId: row.shared_with_user_id,
+    permission: row.permission,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    email: (row.profiles as any)?.email ?? undefined,
+  }));
+}
+
+export async function shareEstimate(
+  quoteId: string,
+  userId: string,
+  permission: string
+): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("estimate_shares")
+    .upsert(
+      {
+        quote_id: quoteId,
+        shared_with_user_id: userId,
+        permission,
+      },
+      { onConflict: "quote_id,shared_with_user_id" }
+    );
+
+  if (error) {
+    console.error("Share estimate error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function removeEstimateShare(id: string): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from("estimate_shares")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Remove estimate share error:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function searchUsers(query: string): Promise<UserProfile[]> {
+  const { data, error } = await getSupabase()
+    .from("profiles")
+    .select("*")
+    .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+    .limit(10);
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name ?? null,
+    role: row.role,
+    defaultRegionId: row.default_region_id ?? null,
+  }));
+}
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+
+export async function fetchUserProfile(): Promise<UserProfile | null> {
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+
+  const { data, error } = await getSupabase()
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    email: data.email,
+    fullName: data.full_name ?? null,
+    role: data.role,
+    defaultRegionId: data.default_region_id ?? null,
+  };
+}
+
+export async function updateUserProfile(data: Partial<UserProfile>): Promise<boolean> {
+  const userId = await getCurrentUserId();
+  if (!userId) return false;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: Record<string, any> = {};
+  if (data.fullName !== undefined) row.full_name = data.fullName;
+  if (data.role !== undefined) row.role = data.role;
+  if (data.defaultRegionId !== undefined) row.default_region_id = data.defaultRegionId;
+  if (data.email !== undefined) row.email = data.email;
+
+  const { error } = await getSupabase()
+    .from("profiles")
+    .update(row)
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Update user profile error:", error);
+    return false;
+  }
+  return true;
 }

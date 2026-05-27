@@ -4,17 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export function AppHeader() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       setEmail(data.user?.email ?? null);
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+        setRole(profile?.role ?? null);
+      }
     });
   }, [supabase]);
 
@@ -42,6 +51,15 @@ export function AppHeader() {
           </span>
         </Link>
         <div className="flex items-center gap-2">
+          {role === "super_user" && (
+            <Link
+              href="/settings/templates"
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="Settings"
+            >
+              <Settings className="h-4 w-4 text-white/60 hover:text-white" />
+            </Link>
+          )}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-sm">
             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
               <User className="h-3.5 w-3.5" />
