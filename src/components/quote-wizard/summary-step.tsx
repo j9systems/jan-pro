@@ -331,42 +331,37 @@ export function SummaryStep() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm table-fixed">
+              <div className="overflow-x-auto -mx-6 px-6">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="pb-2 font-medium w-[28%]">Area</th>
-                      <th className="pb-2 font-medium w-[20%]">Floor</th>
-                      <th className="pb-2 font-medium text-right w-[8%]">Qty</th>
-                      <th className="pb-2 font-medium text-right w-[14%] whitespace-nowrap">Sq Ft</th>
-                      <th className="pb-2 font-medium text-right w-[14%] whitespace-nowrap">Min/Visit</th>
-                      <th className="pb-2 font-medium text-right w-[16%]">Monthly</th>
+                      <th className="pb-2 pr-3 font-medium">Area</th>
+                      <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Sq Ft</th>
+                      <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Min/Visit</th>
+                      <th className="pb-2 font-medium text-right whitespace-nowrap">Monthly</th>
                     </tr>
                   </thead>
                   <tbody>
                     {quote.areas.map((area) => (
                       <tr key={area.id} className="border-b last:border-0">
-                        <td className="py-2 pr-2">
-                          <div>
+                        <td className="py-2.5 pr-3">
+                          <div className="font-medium">
                             {area.areaName || `Area ${area.sortOrder}`}
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({getAreaTypeLabel(area.areaType)})
-                            </span>
+                            {area.quantity > 1 && (
+                              <span className="text-muted-foreground font-normal ml-1">×{area.quantity}</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {getFloorLabel(area.floorType)} · {getAreaTypeLabel(area.areaType)}
                           </div>
                         </td>
-                        <td className="py-2 pr-2 text-xs">
-                          {getFloorLabel(area.floorType)}
-                        </td>
-                        <td className="py-2 text-right">
-                          {area.quantity > 1 ? `${area.quantity}x` : ""}
-                        </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2.5 pr-3 text-right tabular-nums">
                           {area.sqftTotal.toLocaleString()}
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2.5 pr-3 text-right tabular-nums">
                           {Math.round(area.minsPerVisit)}
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2.5 text-right tabular-nums font-medium">
                           {formatCurrency(area.costPerMonth)}
                         </td>
                       </tr>
