@@ -110,7 +110,7 @@ export function calculatePorterCost(porter: Porter): number {
 }
 
 export function calculateSpecialServiceCost(service: SpecialService): number {
-  return service.sqftOrUnits * (SPECIAL_SERVICE_RATES[service.serviceType] ?? service.rate);
+  return service.sqftOrUnits * (SPECIAL_SERVICE_RATES[service.serviceType] ?? service.rate ?? 0);
 }
 
 export function getRegionalMinimum(region: string, visitsPerWeek: number): number {

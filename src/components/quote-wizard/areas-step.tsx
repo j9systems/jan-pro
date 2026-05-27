@@ -799,6 +799,7 @@ function CleaningScheduleModal({
   // Load checklist items + overrides when modal opens
   useEffect(() => {
     if (!open || !quote) return;
+    let cancelled = false;
 
     const load = async () => {
       setLoading(true);
@@ -852,11 +853,14 @@ function CleaningScheduleModal({
           };
         });
 
-      setRows(builtRows);
-      setLoading(false);
+      if (!cancelled) {
+        setRows(builtRows);
+        setLoading(false);
+      }
     };
 
     load();
+    return () => { cancelled = true; };
   }, [open, area.id, area.areaTemplateId, area.areaType, area.areaName, quote, updateArea]);
 
   const handleFrequencyChange = async (

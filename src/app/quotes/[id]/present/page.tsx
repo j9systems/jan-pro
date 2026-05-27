@@ -18,10 +18,14 @@ export default function PresentPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (!currentQuote || currentQuote.id !== id) {
       loadQuote(id);
     }
-  }, [id, currentQuote, loadQuote]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (!mounted) return null;
 

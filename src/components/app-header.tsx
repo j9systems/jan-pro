@@ -17,11 +17,12 @@ export function AppHeader() {
     supabase.auth.getUser().then(async ({ data }) => {
       setEmail(data.user?.email ?? null);
       if (data.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", data.user.id)
           .single();
+        if (profileError) console.error("Profile fetch error:", profileError.message);
         setRole(profile?.role ?? null);
       }
     });

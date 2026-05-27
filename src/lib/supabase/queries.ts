@@ -190,7 +190,11 @@ export async function fetchQuotes(): Promise<Quote[]> {
     .select("*")
     .order("updated_at", { ascending: false });
 
-  if (error || !rows) return [];
+  if (error) {
+    console.error("fetchQuotes error:", error.message, error.code);
+    return [];
+  }
+  if (!rows) return [];
 
   // Fetch all areas for these quotes
   const quoteIds = rows.map((r) => r.id);
