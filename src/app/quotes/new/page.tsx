@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,9 @@ export default function NewQuotePage() {
     }
   }, [quote, initNewQuote]);
 
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   if (!quote) return null;
 
   const StepComponent = STEPS[currentStep].component;
@@ -51,9 +54,25 @@ export default function NewQuotePage() {
   };
 
   const handleSaveAndPresent = async () => {
-    updateQuote({ status: "presented" });
-    await saveQuote();
-    router.push(`/quotes/${quote.id}/present`);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      updateQuote({ status: "presented" });
+      await saveQuote();
+      // Verify the quote was saved before navigating
+      const store = useQuoteStore.getState();
+      const saved = store.savedQuotes.find((q) => q.id === quote.id);
+      if (saved) {
+        router.push(`/quotes/${quote.id}/present`);
+      } else {
+        setSaveError("Quote failed to save. Please try again.");
+        setSaving(false);
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      setSaveError("An error occurred while saving. Please try again.");
+      setSaving(false);
+    }
   };
 
   const progress = ((currentStep + 1) / STEPS.length) * 100;
@@ -124,14 +143,18 @@ export default function NewQuotePage() {
           <span className="text-sm text-muted-foreground hidden sm:inline">
             Step {currentStep + 1} of {STEPS.length}
           </span>
+          {saveError && (
+            <span className="text-sm text-destructive">{saveError}</span>
+          )}
           {currentStep === STEPS.length - 1 ? (
             <Button
               onClick={handleSaveAndPresent}
               size="lg"
               className="gap-2"
+              disabled={saving}
             >
               <Sparkles className="h-4 w-4" />
-              Save & Present
+              {saving ? "Saving..." : "Save & Present"}
             </Button>
           ) : (
             <Button

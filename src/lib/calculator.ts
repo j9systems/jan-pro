@@ -201,7 +201,7 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     sutmTotal,
     calculatedMonthly: Math.round(calculatedMonthly * 100) / 100,
     premiumMonthly: Math.round(premiumMonthly * 100) / 100,
-    quotedMonthly: quote.quotedMonthly,
+    quotedMonthly: quote.quotedMonthly || Math.round(calculatedMonthly * 100) / 100,
     initialCleanData: {
       ...quote.initialCleanData,
       totalCost: initialCleanTotal,

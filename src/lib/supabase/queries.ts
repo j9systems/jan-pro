@@ -141,7 +141,7 @@ function areaToRow(area: QuoteArea, quoteId: string) {
     visits_per_week: area.visitsPerWeek ?? null,
     production_rate_override: area.productionRateOverride ?? null,
     frozen_checklist: area.frozenChecklist,
-    area_template_id: area.areaTemplateId ?? null,
+    area_template_id: null, // Don't persist template reference — it's resolved dynamically from facility type + area type
     mins_per_visit: area.minsPerVisit,
     cost_per_month: area.costPerMonth,
   };
