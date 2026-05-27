@@ -13,9 +13,9 @@ export function AppHeader() {
   const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
 
   useEffect(() => {
+    const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
       setEmail(data.user?.email ?? null);
       if (data.user) {
@@ -28,7 +28,7 @@ export function AppHeader() {
         setRole(profile?.role ?? null);
       }
     });
-  }, [supabase]);
+  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -43,6 +43,7 @@ export function AppHeader() {
 
   const handleSignOut = async () => {
     setMenuOpen(false);
+    const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
   };
