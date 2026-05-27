@@ -10,36 +10,13 @@ import { createClient } from "@/lib/supabase/client";
 export function AppHeader() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
-    // First get the auth user
     supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? null);
-    });
-    // Then fetch profile separately — if this fails, menu still works
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return;
-      // Use raw fetch with the access token to avoid RLS issues
-      fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}&select=role,status`,
-        {
-          headers: {
-            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      )
-        .then((res) => res.json())
-        .then((rows) => {
-          if (Array.isArray(rows) && rows.length > 0) {
-            setRole(rows[0].role ?? null);
-          }
-        })
-        .catch((err) => console.error("Profile fetch error:", err));
     });
   }, []);
 
@@ -60,8 +37,6 @@ export function AppHeader() {
     await supabase.auth.signOut();
     router.push("/login");
   };
-
-  const isSuperUser = role === "super_user";
 
   return (
     <header className="relative bg-gradient-to-r from-janpro-navy via-[#002a78] to-[#003a9e] text-white shadow-lg">
@@ -97,25 +72,18 @@ export function AppHeader() {
               {/* User info */}
               <div className="px-4 py-3 border-b border-border/50">
                 <p className="text-sm font-medium truncate">{email || "Loading..."}</p>
-                {role && (
-                  <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                    {role === "super_user" ? "Admin" : role === "sales_manager" ? "Manager" : "Sales Rep"}
-                  </p>
-                )}
               </div>
 
               {/* Menu items */}
               <div className="py-1">
-                {isSuperUser && (
-                  <Link
-                    href="/settings/templates"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors"
-                  >
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                    Settings
-                  </Link>
-                )}
+                <Link
+                  href="/settings/templates"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  Settings
+                </Link>
                 <button
                   type="button"
                   onClick={handleSignOut}
