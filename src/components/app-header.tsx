@@ -76,14 +76,17 @@ export function AppHeader() {
 
               {/* Menu items */}
               <div className="py-1">
-                <Link
-                  href="/settings/templates"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push("/settings/templates");
+                  }}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors w-full text-left"
                 >
                   <Settings className="h-4 w-4 text-muted-foreground" />
                   Settings
-                </Link>
+                </button>
                 <button
                   type="button"
                   onClick={handleSignOut}
