@@ -42,6 +42,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Track the user's role for the cookie below
+  let userRole: string | null = null;
+
   // Fetch profile for authenticated users (role + status)
   if (
     user &&
@@ -64,16 +67,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Set role as a cookie so client components can read it without querying profiles
-    if (profile?.role) {
-      supabaseResponse.cookies.set("x-user-role", profile.role, {
-        path: "/",
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60, // 1 hour
-      });
-    }
+    userRole = profile?.role ?? null;
   }
 
   // Redirect authenticated users away from login
@@ -81,6 +75,18 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Set role cookie LAST — after all Supabase operations that might
+  // reassign supabaseResponse via setAll()
+  if (userRole) {
+    supabaseResponse.cookies.set("x-user-role", userRole, {
+      path: "/",
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60,
+    });
   }
 
   return supabaseResponse;
