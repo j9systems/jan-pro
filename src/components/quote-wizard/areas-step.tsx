@@ -54,10 +54,6 @@ import {
 import { useQuoteStore } from "@/lib/store";
 import {
   fetchChecklistItems,
-  fetchAreaOverrides,
-  upsertAreaOverride,
-  deleteAreaOverride,
-  resetAreaOverrides,
   fetchAreaTemplates,
   uploadPhoto,
   getCurrentUserId,
@@ -852,16 +848,23 @@ interface ChecklistRow {
   task: string;
   defaultFrequency: string;
   currentFrequency: ScheduleFrequency;
-  overrideId: string | null;
   isOverridden: boolean;
 }
 
 function CleaningScheduleModal({
-  area,
+  areaId,
+  areaType,
+  areaName,
+  areaTemplateId,
+  frozenChecklist,
   open,
   onOpenChange,
 }: {
-  area: QuoteArea;
+  areaId: string;
+  areaType: string;
+  areaName: string;
+  areaTemplateId?: string;
+  frozenChecklist: Array<{ itemId: string; task: string; frequency: string }>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -869,8 +872,9 @@ function CleaningScheduleModal({
   const quote = useQuoteStore((s) => s.currentQuote);
   const [rows, setRows] = useState<ChecklistRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [matchedTemplateId, setMatchedTemplateId] = useState<string | undefined>(areaTemplateId);
 
-  // Load checklist items + overrides when modal opens
+  // Load checklist when modal opens or area type changes
   useEffect(() => {
     if (!open || !quote) return;
     let cancelled = false;
@@ -878,120 +882,96 @@ function CleaningScheduleModal({
     const load = async () => {
       setLoading(true);
 
-      // Find the matching area template for this area's type + facility type
       let checklistItems: ChecklistItem[] = [];
+      let resolvedTemplateId = matchedTemplateId;
 
-      if (area.areaTemplateId) {
-        checklistItems = await fetchChecklistItems(area.areaTemplateId);
-      } else {
-        // Try to find a template by matching facility type + area name/type
-        const store = useQuoteStore.getState();
-        const ft = store.facilityTypes.find(
-          (f) => f.name === quote.facilityType
+      // Always try to match by area type (not cached templateId) so changing area type works
+      const store = useQuoteStore.getState();
+      const ft = store.facilityTypes.find((f) => f.name === quote.facilityType);
+      if (ft) {
+        const areaTpls = await fetchAreaTemplates(ft.id);
+        const areaTypeNormalized = areaType.replace(/_/g, " ").toLowerCase();
+        const match = areaTpls.find(
+          (t) =>
+            t.name.toLowerCase().includes(areaTypeNormalized) ||
+            areaTypeNormalized.includes(t.name.toLowerCase()) ||
+            areaName.toLowerCase().includes(t.name.toLowerCase())
         );
-        if (ft) {
-          const areaTpls = await fetchAreaTemplates(ft.id);
-          // Match by area type or name
-          const match = areaTpls.find(
-            (t) =>
-              t.name.toLowerCase().includes(area.areaType.replace(/_/g, " ")) ||
-              area.areaName.toLowerCase().includes(t.name.toLowerCase())
-          );
-          if (match) {
-            checklistItems = await fetchChecklistItems(match.id);
-            // Save the template ID on the area for future lookups
-            updateArea(area.id, { areaTemplateId: match.id });
-          }
+        if (match) {
+          resolvedTemplateId = match.id;
+          checklistItems = await fetchChecklistItems(match.id);
         }
       }
 
-      // Load any existing overrides for this area
-      const overrides = await fetchAreaOverrides(area.id);
-      const overrideMap = new Map(
-        overrides.map((o) => [o.checklistItemId, o])
-      );
+      // If we have a frozen checklist already, use it to restore overrides
+      const frozenMap = new Map(frozenChecklist.map((c) => [c.itemId, c.frequency]));
 
       const builtRows: ChecklistRow[] = checklistItems
         .filter((item) => item.isActive)
         .map((item) => {
-          const override = overrideMap.get(item.id);
+          const frozenFreq = frozenMap.get(item.id);
+          const currentFrequency = frozenFreq
+            ? (frozenFreq as ScheduleFrequency)
+            : (item.defaultFrequency as ScheduleFrequency);
           return {
             itemId: item.id,
             task: item.task,
             defaultFrequency: item.defaultFrequency,
-            currentFrequency: override
-              ? (override.overriddenFrequency as ScheduleFrequency)
-              : (item.defaultFrequency as ScheduleFrequency),
-            overrideId: override?.id ?? null,
-            isOverridden: !!override,
+            currentFrequency,
+            isOverridden: frozenFreq ? frozenFreq !== item.defaultFrequency : false,
           };
         });
 
       if (!cancelled) {
         setRows(builtRows);
+        setMatchedTemplateId(resolvedTemplateId);
         setLoading(false);
       }
     };
 
     load();
     return () => { cancelled = true; };
-  }, [open, area.id, area.areaTemplateId, area.areaType, area.areaName, quote, updateArea]);
+    // Deliberately exclude updateArea to prevent re-render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, areaType, quote?.facilityType]);
 
-  const handleFrequencyChange = async (
-    row: ChecklistRow,
-    newFreq: ScheduleFrequency
-  ) => {
-    // If setting back to default, remove override
-    if (newFreq === row.defaultFrequency && row.overrideId) {
-      await deleteAreaOverride(row.overrideId);
-    } else if (newFreq !== row.defaultFrequency) {
-      await upsertAreaOverride(area.id, row.itemId, newFreq);
-    }
-
-    // Update local state
-    setRows((prev) =>
-      prev.map((r) =>
-        r.itemId === row.itemId
-          ? {
-              ...r,
-              currentFrequency: newFreq,
-              isOverridden: newFreq !== r.defaultFrequency,
-              overrideId:
-                newFreq === r.defaultFrequency ? null : r.overrideId || "pending",
-            }
-          : r
-      )
-    );
-
-    // Update frozen checklist on the area
+  const handleFrequencyChange = (row: ChecklistRow, newFreq: ScheduleFrequency) => {
+    // Update local state only — no DB writes
     const updatedRows = rows.map((r) =>
-      r.itemId === row.itemId ? { ...r, currentFrequency: newFreq } : r
+      r.itemId === row.itemId
+        ? {
+            ...r,
+            currentFrequency: newFreq,
+            isOverridden: newFreq !== r.defaultFrequency,
+          }
+        : r
     );
-    updateArea(area.id, {
+    setRows(updatedRows);
+
+    // Save to frozen checklist on the area (in Zustand, not DB)
+    updateArea(areaId, {
+      areaTemplateId: matchedTemplateId,
       frozenChecklist: updatedRows.map((r) => ({
         itemId: r.itemId,
         task: r.task,
-        frequency: r.currentFrequency,
+        frequency: r.currentFrequency as "nightly" | "weekly" | "monthly" | "excluded",
       })),
     });
   };
 
-  const handleResetAll = async () => {
-    await resetAreaOverrides(area.id);
-    setRows((prev) =>
-      prev.map((r) => ({
-        ...r,
-        currentFrequency: r.defaultFrequency as ScheduleFrequency,
-        isOverridden: false,
-        overrideId: null,
-      }))
-    );
-    // Update frozen checklist
-    updateArea(area.id, {
-      frozenChecklist: rows.map((r) => ({
+  const handleResetAll = () => {
+    const resetRows = rows.map((r) => ({
+      ...r,
+      currentFrequency: r.defaultFrequency as ScheduleFrequency,
+      isOverridden: false,
+    }));
+    setRows(resetRows);
+
+    updateArea(areaId, {
+      frozenChecklist: resetRows.map((r) => ({
         itemId: r.itemId,
         task: r.task,
-        frequency: r.defaultFrequency as ScheduleFrequency,
+        frequency: r.defaultFrequency as "nightly" | "weekly" | "monthly" | "excluded",
       })),
     });
   };
@@ -1017,7 +997,7 @@ function CleaningScheduleModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-janpro-navy" />
-            {area.areaName || `Area ${area.sortOrder}`} — Cleaning Schedule
+            {areaName} — Cleaning Schedule
           </DialogTitle>
           <DialogDescription>
             Customize the cleaning frequency for each task. Overrides are
@@ -1133,7 +1113,11 @@ function DetailPanel({ area }: { area: QuoteArea }) {
       </div>
 
       <CleaningScheduleModal
-        area={area}
+        areaId={area.id}
+        areaType={area.areaType}
+        areaName={area.areaName || `Area ${area.sortOrder}`}
+        areaTemplateId={area.areaTemplateId}
+        frozenChecklist={area.frozenChecklist || []}
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
       />
