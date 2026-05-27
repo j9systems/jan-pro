@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Block archived users — sign them out and redirect to login
+  // Fetch profile for authenticated users (role + status)
   if (
     user &&
     !request.nextUrl.pathname.startsWith("/login") &&
@@ -51,16 +51,28 @@ export async function middleware(request: NextRequest) {
   ) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("status")
+      .select("role, status")
       .eq("id", user.id)
       .single();
 
+    // Block archived users
     if (profile?.status === "archived") {
       await supabase.auth.signOut();
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("error", "archived");
       return NextResponse.redirect(url);
+    }
+
+    // Set role as a cookie so client components can read it without querying profiles
+    if (profile?.role) {
+      supabaseResponse.cookies.set("x-user-role", profile.role, {
+        path: "/",
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60, // 1 hour
+      });
     }
   }
 

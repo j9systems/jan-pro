@@ -7,9 +7,16 @@ import { useRouter } from "next/navigation";
 import { User, LogOut, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 export function AppHeader() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -18,6 +25,8 @@ export function AppHeader() {
     supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? null);
     });
+    // Read role from cookie set by middleware
+    setRole(getCookie("x-user-role"));
   }, []);
 
   // Close menu on outside click
@@ -35,8 +44,11 @@ export function AppHeader() {
     setMenuOpen(false);
     const supabase = createClient();
     await supabase.auth.signOut();
+    document.cookie = "x-user-role=; path=/; max-age=0";
     router.push("/login");
   };
+
+  const isSuperUser = role === "super_user";
 
   return (
     <header className="relative bg-gradient-to-r from-janpro-navy via-[#002a78] to-[#003a9e] text-white shadow-lg">
@@ -72,21 +84,28 @@ export function AppHeader() {
               {/* User info */}
               <div className="px-4 py-3 border-b border-border/50">
                 <p className="text-sm font-medium truncate">{email || "Loading..."}</p>
+                {role && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {role === "super_user" ? "Admin" : role === "sales_manager" ? "Manager" : "Sales Rep"}
+                  </p>
+                )}
               </div>
 
               {/* Menu items */}
               <div className="py-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    router.push("/settings/templates");
-                  }}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors w-full text-left"
-                >
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                  Settings
-                </button>
+                {isSuperUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/settings/templates");
+                    }}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors w-full text-left"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                    Settings
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSignOut}

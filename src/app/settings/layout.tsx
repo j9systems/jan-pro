@@ -5,7 +5,12 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Settings, ArrowLeft, LayoutList, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
 
 const TABS = [
   { href: "/settings/templates", label: "Templates", icon: LayoutList },
@@ -20,33 +25,19 @@ export default function SettingsLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [authorized, setAuthorized] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    const checkRole = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role === "super_user") {
-        setAuthorized(true);
-      } else {
-        router.push("/dashboard");
-      }
-      setLoading(false);
-    };
-    checkRole();
+    const role = getCookie("x-user-role");
+    if (role === "super_user") {
+      setAuthorized(true);
+    } else {
+      router.push("/dashboard");
+    }
+    setChecked(true);
   }, [router]);
 
-  if (loading) {
+  if (!checked) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-16 text-center text-muted-foreground">
         Loading...
