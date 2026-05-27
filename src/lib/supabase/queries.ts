@@ -591,7 +591,7 @@ export async function reorderAreaTemplates(
 
 export async function fetchChecklistItems(areaTemplateId: string): Promise<ChecklistItem[]> {
   const { data, error } = await getSupabase()
-    .from("checklist_items")
+    .from("area_checklist_items")
     .select("*")
     .eq("area_template_id", areaTemplateId)
     .eq("is_active", true)
@@ -616,7 +616,7 @@ export async function createChecklistItem(
   displayOrder: number
 ): Promise<ChecklistItem | null> {
   const { data, error } = await getSupabase()
-    .from("checklist_items")
+    .from("area_checklist_items")
     .insert({
       area_template_id: areaTemplateId,
       task,
@@ -654,7 +654,7 @@ export async function updateChecklistItem(
   if (data.areaTemplateId !== undefined) row.area_template_id = data.areaTemplateId;
 
   const { error } = await getSupabase()
-    .from("checklist_items")
+    .from("area_checklist_items")
     .update(row)
     .eq("id", id);
 
@@ -668,7 +668,7 @@ export async function updateChecklistItem(
 export async function deleteChecklistItem(id: string): Promise<boolean> {
   // Soft delete
   const { error } = await getSupabase()
-    .from("checklist_items")
+    .from("area_checklist_items")
     .update({ is_active: false })
     .eq("id", id);
 
@@ -683,7 +683,7 @@ export async function deleteChecklistItem(id: string): Promise<boolean> {
 
 export async function fetchAreaOverrides(areaId: string): Promise<AreaOverride[]> {
   const { data, error } = await getSupabase()
-    .from("area_overrides")
+    .from("estimate_area_overrides")
     .select("*")
     .eq("area_id", areaId);
 
@@ -703,7 +703,7 @@ export async function upsertAreaOverride(
   frequency: string
 ): Promise<boolean> {
   const { error } = await getSupabase()
-    .from("area_overrides")
+    .from("estimate_area_overrides")
     .upsert(
       {
         area_id: areaId,
@@ -722,7 +722,7 @@ export async function upsertAreaOverride(
 
 export async function deleteAreaOverride(id: string): Promise<boolean> {
   const { error } = await getSupabase()
-    .from("area_overrides")
+    .from("estimate_area_overrides")
     .delete()
     .eq("id", id);
 
@@ -736,7 +736,7 @@ export async function deleteAreaOverride(id: string): Promise<boolean> {
 export async function resetAreaOverrides(areaId: string): Promise<boolean> {
   // Delete all overrides for an area
   const { error } = await getSupabase()
-    .from("area_overrides")
+    .from("estimate_area_overrides")
     .delete()
     .eq("area_id", areaId);
 
