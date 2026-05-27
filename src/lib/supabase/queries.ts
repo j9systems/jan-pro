@@ -305,6 +305,99 @@ export async function deletePhoto(path: string): Promise<boolean> {
   return !error;
 }
 
+// ─── Area Media (DB records) ─────────────────────────────────────────────────
+
+export interface AreaMediaRecord {
+  id: string;
+  areaId: string;
+  kind: "photo" | "video" | "voice";
+  storagePath: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  recordedAt: string;
+  signedUrl?: string;
+}
+
+export async function fetchAreaMedia(areaId: string): Promise<AreaMediaRecord[]> {
+  const { data, error } = await getSupabase()
+    .from("area_media")
+    .select("*")
+    .eq("area_id", areaId)
+    .order("recorded_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  // Generate signed URLs for each media item
+  const records: AreaMediaRecord[] = [];
+  for (const row of data) {
+    const signedUrl = await getSignedUrl(row.storage_path);
+    records.push({
+      id: row.id,
+      areaId: row.area_id,
+      kind: row.kind,
+      storagePath: row.storage_path,
+      fileName: row.file_name,
+      fileSize: row.file_size,
+      mimeType: row.mime_type,
+      recordedAt: row.recorded_at,
+      signedUrl: signedUrl ?? undefined,
+    });
+  }
+  return records;
+}
+
+export async function createAreaMedia(
+  areaId: string,
+  kind: "photo" | "video" | "voice",
+  storagePath: string,
+  fileName: string,
+  fileSize: number,
+  mimeType: string
+): Promise<AreaMediaRecord | null> {
+  const { data, error } = await getSupabase()
+    .from("area_media")
+    .insert({
+      area_id: areaId,
+      kind,
+      storage_path: storagePath,
+      file_name: fileName,
+      file_size: fileSize,
+      mime_type: mimeType,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("createAreaMedia error:", error);
+    return null;
+  }
+
+  const signedUrl = await getSignedUrl(storagePath);
+  return {
+    id: data.id,
+    areaId: data.area_id,
+    kind: data.kind,
+    storagePath: data.storage_path,
+    fileName: data.file_name,
+    fileSize: data.file_size,
+    mimeType: data.mime_type,
+    recordedAt: data.recorded_at,
+    signedUrl: signedUrl ?? undefined,
+  };
+}
+
+export async function deleteAreaMedia(id: string, storagePath: string): Promise<boolean> {
+  // Delete from storage first
+  await deletePhoto(storagePath);
+  // Then delete the DB record
+  const { error } = await getSupabase()
+    .from("area_media")
+    .delete()
+    .eq("id", id);
+  return !error;
+}
+
 // ─── Facility Types ───────────────────────────────────────────────────────────
 
 export async function fetchFacilityTypes(): Promise<FacilityTypeRecord[]> {

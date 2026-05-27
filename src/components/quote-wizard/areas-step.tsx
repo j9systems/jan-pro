@@ -59,7 +59,13 @@ import {
   deleteAreaOverride,
   resetAreaOverrides,
   fetchAreaTemplates,
+  uploadPhoto,
+  getCurrentUserId,
+  createAreaMedia,
+  fetchAreaMedia,
+  deleteAreaMedia,
 } from "@/lib/supabase/queries";
+import type { AreaMediaRecord } from "@/lib/supabase/queries";
 import {
   FLOOR_TYPES_V3,
   AREA_TYPES,
@@ -477,32 +483,65 @@ function AggregatesBar({ areas }: { areas: QuoteArea[] }) {
   );
 }
 
-// --- Photo Upload ---
+// --- Photo Upload (Supabase Storage) ---
 
 function PhotoUpload({ area }: { area: QuoteArea }) {
-  const updateArea = useQuoteStore((s) => s.updateArea);
+  const quote = useQuoteStore((s) => s.currentQuote);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [media, setMedia] = useState<AreaMediaRecord[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load existing photos from Supabase on mount
+  useEffect(() => {
+    if (loaded) return;
+    let cancelled = false;
+    fetchAreaMedia(area.id).then((records) => {
+      if (!cancelled) {
+        setMedia(records.filter((r) => r.kind === "photo"));
+        setLoaded(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [area.id, loaded]);
 
   const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files) return;
-      Array.from(files).forEach((file) => {
-        if (!file.type.startsWith("image/")) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const base64 = e.target?.result as string;
-          updateArea(area.id, { photos: [...(area.photos || []), base64] });
-        };
-        reader.readAsDataURL(file);
-      });
+    async (files: FileList | null) => {
+      if (!files || !quote) return;
+      const userId = await getCurrentUserId();
+      if (!userId) return;
+
+      setUploading(true);
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+
+        // Upload to Supabase Storage
+        const storagePath = await uploadPhoto(file, userId, quote.id, area.id);
+        if (!storagePath) continue;
+
+        // Create DB record
+        const record = await createAreaMedia(
+          area.id,
+          "photo",
+          storagePath,
+          file.name,
+          file.size,
+          file.type
+        );
+        if (record) {
+          setMedia((prev) => [...prev, record]);
+        }
+      }
+      setUploading(false);
     },
-    [area.id, area.photos, updateArea]
+    [area.id, quote]
   );
 
-  const removePhoto = (index: number) => {
-    const updated = [...(area.photos || [])];
-    updated.splice(index, 1);
-    updateArea(area.id, { photos: updated });
+  const removeMedia = async (record: AreaMediaRecord) => {
+    const success = await deleteAreaMedia(record.id, record.storagePath);
+    if (success) {
+      setMedia((prev) => prev.filter((m) => m.id !== record.id));
+    }
   };
 
   return (
@@ -510,16 +549,21 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
       <Label className="flex items-center gap-2">
         <Camera className="h-4 w-4" />
         Photos
+        {uploading && <span className="text-xs text-muted-foreground animate-pulse">Uploading...</span>}
       </Label>
-      {(area.photos || []).length > 0 && (
+      {media.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {(area.photos || []).map((photo, i) => (
-            <div key={i} className="relative group w-20 h-20 rounded-md overflow-hidden border">
+          {media.map((m) => (
+            <div key={m.id} className="relative group w-20 h-20 rounded-md overflow-hidden border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo} alt={`Area photo ${i + 1}`} className="w-full h-full object-cover" />
+              <img
+                src={m.signedUrl || ""}
+                alt={m.fileName || "Photo"}
+                className="w-full h-full object-cover"
+              />
               <button
                 type="button"
-                onClick={() => removePhoto(i)}
+                onClick={() => removeMedia(m)}
                 className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="h-3 w-3" />
@@ -542,6 +586,7 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
           type="button"
           variant="outline"
           size="sm"
+          disabled={uploading}
           onClick={() => {
             if (fileInputRef.current) {
               fileInputRef.current.setAttribute("capture", "environment");
@@ -556,6 +601,7 @@ function PhotoUpload({ area }: { area: QuoteArea }) {
           type="button"
           variant="outline"
           size="sm"
+          disabled={uploading}
           onClick={() => {
             if (fileInputRef.current) {
               fileInputRef.current.removeAttribute("capture");
