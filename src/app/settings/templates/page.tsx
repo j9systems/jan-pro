@@ -319,19 +319,23 @@ export default function TemplateSettingsPage() {
             ) : (
               <>
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-white/50">
-                    <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-                    <span className="flex-1 text-sm">{item.task}</span>
-                    <FrequencyPill
-                      value={item.defaultFrequency as Frequency}
-                      onChange={(f) => handleUpdateItemFrequency(item, f)}
-                    />
-                    <button
-                      onClick={() => handleDeleteItem(item.id)}
-                      className="p-1 rounded text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                  <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-white/50 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0 mt-0.5" />
+                      <span className="flex-1 text-sm leading-snug">{item.task}</span>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive shrink-0"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="pl-5">
+                      <FrequencyPill
+                        value={item.defaultFrequency as Frequency}
+                        onChange={(f) => handleUpdateItemFrequency(item, f)}
+                      />
+                    </div>
                   </div>
                 ))}
                 {items.length === 0 && (
