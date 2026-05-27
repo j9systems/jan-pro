@@ -772,20 +772,18 @@ export async function fetchRegions(): Promise<RegionRecord[]> {
 export async function fetchEstimateShares(
   quoteId: string
 ): Promise<(EstimateShare & { email?: string })[]> {
-  const { data, error } = await getSupabase()
-    .from("estimate_shares")
-    .select("*, profiles:shared_with_user_id(email)")
-    .eq("quote_id", quoteId);
+  const { data, error } = await getSupabase().rpc("get_estimate_shares", {
+    qid: quoteId,
+  });
 
   if (error || !data) return [];
 
-  return data.map((row) => ({
-    id: row.id,
-    quoteId: row.quote_id,
-    sharedWithUserId: row.shared_with_user_id,
-    permission: row.permission,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    email: (row.profiles as any)?.email ?? undefined,
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    id: row.id as string,
+    quoteId: row.quote_id as string,
+    sharedWithUserId: row.shared_with_user_id as string,
+    permission: row.permission as "view" | "edit",
+    email: (row.email as string) ?? undefined,
   }));
 }
 
@@ -826,20 +824,18 @@ export async function removeEstimateShare(id: string): Promise<boolean> {
 }
 
 export async function searchUsers(query: string): Promise<UserProfile[]> {
-  const { data, error } = await getSupabase()
-    .from("profiles")
-    .select("*")
-    .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
-    .limit(10);
+  const { data, error } = await getSupabase().rpc("search_users", {
+    search_query: query,
+  });
 
   if (error || !data) return [];
 
-  return data.map((row) => ({
-    id: row.id,
-    email: row.email,
-    fullName: row.full_name ?? null,
-    role: row.role,
-    defaultRegionId: row.default_region_id ?? null,
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    id: row.id as string,
+    email: row.email as string,
+    fullName: (row.full_name as string) ?? null,
+    role: row.role as "sales_rep" | "sales_manager" | "super_user",
+    defaultRegionId: (row.default_region_id as string) ?? null,
   }));
 }
 
