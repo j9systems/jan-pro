@@ -94,7 +94,7 @@ export default function DashboardPage() {
             No quotes yet
           </h3>
           <p className="text-muted-foreground mb-8 max-w-sm mx-auto">
-            Start your first estimate to see it here. Quotes are saved locally on this device.
+            Start your first estimate to see it here.
           </p>
           <Button onClick={handleNewQuote} size="lg" className="gap-2">
             <Plus className="h-5 w-5" />
