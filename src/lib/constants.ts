@@ -57,8 +57,8 @@ export const UNIT_RATES_MINS_PER_UNIT: Record<string, number> = {
   urinals: 2.5,
   mirrors: 1,
   sinks: 2,
-  small_sudums: 2.5,
-  large_sudums: 5,
+  small_sutm: 2.5,
+  large_sutm: 5,
   partitions: 1.5,
   blinds: 10,
   windows: 3,
@@ -136,8 +136,8 @@ export const ALL_UNIT_ITEMS: { key: string; label: string }[] = [
   { key: "urinals", label: "Urinals" },
   { key: "mirrors", label: "Mirrors" },
   { key: "sinks", label: "Sinks" },
-  { key: "small_sudums", label: "Small Sudums" },
-  { key: "large_sudums", label: "Large Sudums (Bradley)" },
+  { key: "small_sutm", label: "Small SUTM" },
+  { key: "large_sutm", label: "Large SUTM (Bradley)" },
   { key: "partitions", label: "Partitions" },
   { key: "blinds", label: "Blinds" },
   { key: "windows", label: "Windows" },
@@ -152,7 +152,7 @@ export const ALL_UNIT_ITEMS: { key: string; label: string }[] = [
 ];
 
 export const UNIT_ITEMS_BY_AREA_TYPE: Record<string, string[]> = {
-  restroom: ["toilets", "urinals", "mirrors", "sinks", "small_sudums", "large_sudums", "partitions"],
+  restroom: ["toilets", "urinals", "mirrors", "sinks", "small_sutm", "large_sutm", "partitions"],
   office: ["blinds", "windows", "whiteboards", "picture_frames"],
   conference_room: ["blinds", "windows", "whiteboards", "picture_frames"],
   classroom: ["blinds", "windows", "whiteboards", "picture_frames"],

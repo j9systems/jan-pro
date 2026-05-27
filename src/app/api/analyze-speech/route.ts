@@ -16,7 +16,7 @@ carpet, tile, hard_floor_lvt_vinyl, composite_flooring, laminate, stained_concre
 office, conference_room, hallway_corridor, lobby_entry, restroom, classroom, medical_exam, production_plant, break_room_kitchen, stairwell, storage, common_area, other
 
 ### Valid Unit Items (use exact keys):
-toilets, urinals, mirrors, sinks, small_sudums, large_sudums, partitions, blinds, windows, whiteboards, picture_frames, refrigerators, microwaves, mats, fryers, dishes_sinks, equipment_surfaces
+toilets, urinals, mirrors, sinks, small_sutm, large_sutm, partitions, blinds, windows, whiteboards, picture_frames, refrigerators, microwaves, mats, fryers, dishes_sinks, equipment_surfaces
 
 ## Fuzzy Matching Rules — Floor Types
 - "carpet" or "carpeted" → carpet
@@ -45,7 +45,7 @@ toilets, urinals, mirrors, sinks, small_sudums, large_sudums, partitions, blinds
 - "warehouse" or "plant" or "production" → production_plant
 
 ## Fuzzy Matching Rules — Unit Items & Extras
-- "sudum" or "sudums" or "SUTM" or "SUTUM" → small_sudums (unless "large" or "Bradley" mentioned → large_sudums)
+- "SUTM" or "SUTUM" or "sudum" or "sudums" or "sinks urinals toilets mirrors" → small_sutm (unless "large" or "Bradley" mentioned → large_sutm). SUTM stands for Sinks, Urinals, Toilets, Mirrors.
 - "mat" or "mats" or "floor mat" or "entry mat" → mats (count them)
 - "fryer" or "fryers" or "deep fryer" → fryers (count them)
 - "dish" or "dishes" or "dish area" or "dish sink" or "commercial dish" → dishes_sinks

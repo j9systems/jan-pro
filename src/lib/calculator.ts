@@ -145,9 +145,9 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
   const totalMinsPerVisit = areasWithCalcs.reduce((sum, a) => sum + a.minsPerVisit, 0);
   const hoursPerVisit = totalMinsPerVisit / 60;
 
-  // Sum all unit items named "small_sudums" or "large_sudums" or "toilets" etc. for SUTM total
+  // Sum all unit items named "small_sutm" or "large_sutm" or "toilets" etc. for SUTM total
   const sutmTotal = areasWithCalcs.reduce((sum, a) => {
-    return sum + (a.unitItems.small_sudums || 0) + (a.unitItems.large_sudums || 0);
+    return sum + (a.unitItems.small_sutm || 0) + (a.unitItems.large_sutm || 0);
   }, 0);
 
   // Subtotal from areas

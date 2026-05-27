@@ -53,8 +53,8 @@ function InitialCleanSection() {
       const totalSutm = quote.areas.reduce(
         (sum, a) =>
           sum +
-          (a.unitItems.small_sudums || 0) +
-          (a.unitItems.large_sudums || 0),
+          (a.unitItems.small_sutm || 0) +
+          (a.unitItems.large_sutm || 0),
         0
       );
       updateQuote({
