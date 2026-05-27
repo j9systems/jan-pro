@@ -41,15 +41,32 @@ import {
   Pause,
   Play,
   FileText,
+  ClipboardCheck,
+  RotateCcw,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useQuoteStore } from "@/lib/store";
+import {
+  fetchChecklistItems,
+  fetchAreaOverrides,
+  upsertAreaOverride,
+  deleteAreaOverride,
+  resetAreaOverrides,
+  fetchAreaTemplates,
+} from "@/lib/supabase/queries";
 import {
   FLOOR_TYPES_V3,
   AREA_TYPES,
   ALL_UNIT_ITEMS,
   UNIT_ITEMS_BY_AREA_TYPE,
 } from "@/lib/constants";
-import type { QuoteArea, FloorType, AreaType } from "@/lib/types";
+import type { QuoteArea, FloorType, AreaType, ChecklistItem } from "@/lib/types";
 
 // --- AI Citation Tooltip ---
 
@@ -752,13 +769,297 @@ function UnitItemsPanel({ area }: { area: QuoteArea }) {
   );
 }
 
+// --- Cleaning Schedule Modal ---
+
+type ScheduleFrequency = "nightly" | "weekly" | "monthly" | "excluded";
+
+interface ChecklistRow {
+  itemId: string;
+  task: string;
+  defaultFrequency: string;
+  currentFrequency: ScheduleFrequency;
+  overrideId: string | null;
+  isOverridden: boolean;
+}
+
+function CleaningScheduleModal({
+  area,
+  open,
+  onOpenChange,
+}: {
+  area: QuoteArea;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const quote = useQuoteStore((s) => s.currentQuote);
+  const [rows, setRows] = useState<ChecklistRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load checklist items + overrides when modal opens
+  useEffect(() => {
+    if (!open || !quote) return;
+
+    const load = async () => {
+      setLoading(true);
+
+      // Find the matching area template for this area's type + facility type
+      let checklistItems: ChecklistItem[] = [];
+
+      if (area.areaTemplateId) {
+        checklistItems = await fetchChecklistItems(area.areaTemplateId);
+      } else {
+        // Try to find a template by matching facility type + area name/type
+        const store = useQuoteStore.getState();
+        const ft = store.facilityTypes.find(
+          (f) => f.name === quote.facilityType
+        );
+        if (ft) {
+          const areaTpls = await fetchAreaTemplates(ft.id);
+          // Match by area type or name
+          const match = areaTpls.find(
+            (t) =>
+              t.name.toLowerCase().includes(area.areaType.replace(/_/g, " ")) ||
+              area.areaName.toLowerCase().includes(t.name.toLowerCase())
+          );
+          if (match) {
+            checklistItems = await fetchChecklistItems(match.id);
+            // Save the template ID on the area for future lookups
+            updateArea(area.id, { areaTemplateId: match.id });
+          }
+        }
+      }
+
+      // Load any existing overrides for this area
+      const overrides = await fetchAreaOverrides(area.id);
+      const overrideMap = new Map(
+        overrides.map((o) => [o.checklistItemId, o])
+      );
+
+      const builtRows: ChecklistRow[] = checklistItems
+        .filter((item) => item.isActive)
+        .map((item) => {
+          const override = overrideMap.get(item.id);
+          return {
+            itemId: item.id,
+            task: item.task,
+            defaultFrequency: item.defaultFrequency,
+            currentFrequency: override
+              ? (override.overriddenFrequency as ScheduleFrequency)
+              : (item.defaultFrequency as ScheduleFrequency),
+            overrideId: override?.id ?? null,
+            isOverridden: !!override,
+          };
+        });
+
+      setRows(builtRows);
+      setLoading(false);
+    };
+
+    load();
+  }, [open, area.id, area.areaTemplateId, area.areaType, area.areaName, quote, updateArea]);
+
+  const handleFrequencyChange = async (
+    row: ChecklistRow,
+    newFreq: ScheduleFrequency
+  ) => {
+    // If setting back to default, remove override
+    if (newFreq === row.defaultFrequency && row.overrideId) {
+      await deleteAreaOverride(row.overrideId);
+    } else if (newFreq !== row.defaultFrequency) {
+      await upsertAreaOverride(area.id, row.itemId, newFreq);
+    }
+
+    // Update local state
+    setRows((prev) =>
+      prev.map((r) =>
+        r.itemId === row.itemId
+          ? {
+              ...r,
+              currentFrequency: newFreq,
+              isOverridden: newFreq !== r.defaultFrequency,
+              overrideId:
+                newFreq === r.defaultFrequency ? null : r.overrideId || "pending",
+            }
+          : r
+      )
+    );
+
+    // Update frozen checklist on the area
+    const updatedRows = rows.map((r) =>
+      r.itemId === row.itemId ? { ...r, currentFrequency: newFreq } : r
+    );
+    updateArea(area.id, {
+      frozenChecklist: updatedRows.map((r) => ({
+        itemId: r.itemId,
+        task: r.task,
+        frequency: r.currentFrequency,
+      })),
+    });
+  };
+
+  const handleResetAll = async () => {
+    await resetAreaOverrides(area.id);
+    setRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        currentFrequency: r.defaultFrequency as ScheduleFrequency,
+        isOverridden: false,
+        overrideId: null,
+      }))
+    );
+    // Update frozen checklist
+    updateArea(area.id, {
+      frozenChecklist: rows.map((r) => ({
+        itemId: r.itemId,
+        task: r.task,
+        frequency: r.defaultFrequency as ScheduleFrequency,
+      })),
+    });
+  };
+
+  const overrideCount = rows.filter((r) => r.isOverridden).length;
+  const freqOptions: ScheduleFrequency[] = [
+    "nightly",
+    "weekly",
+    "monthly",
+    "excluded",
+  ];
+
+  const freqStyles: Record<ScheduleFrequency, string> = {
+    nightly: "bg-janpro-navy text-white",
+    weekly: "bg-janpro-cyan text-white",
+    monthly: "bg-amber-500 text-white",
+    excluded: "bg-muted text-muted-foreground line-through",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-janpro-navy" />
+            {area.areaName || `Area ${area.sortOrder}`} — Cleaning Schedule
+          </DialogTitle>
+          <DialogDescription>
+            Customize the cleaning frequency for each task. Overrides are
+            highlighted.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            Loading checklist...
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            <p className="mb-2">No checklist template found for this area type.</p>
+            <p className="text-xs">
+              A super user can configure templates in Settings → Facility Templates.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div
+                key={row.itemId}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                  row.isOverridden
+                    ? "border-orange-200 bg-orange-50/30"
+                    : row.currentFrequency === "excluded"
+                    ? "border-border/30 bg-muted/20 opacity-50"
+                    : "border-border/50 bg-white/50"
+                }`}
+              >
+                <span
+                  className={`flex-1 text-sm ${
+                    row.currentFrequency === "excluded"
+                      ? "line-through text-muted-foreground"
+                      : ""
+                  }`}
+                >
+                  {row.task}
+                </span>
+                <div className="flex gap-1 shrink-0">
+                  {freqOptions.map((freq) => (
+                    <button
+                      key={freq}
+                      type="button"
+                      onClick={() => handleFrequencyChange(row, freq)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium transition-all ${
+                        row.currentFrequency === freq
+                          ? freqStyles[freq]
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {freq === "excluded"
+                        ? "✕"
+                        : freq.charAt(0).toUpperCase() + freq.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t">
+              <button
+                type="button"
+                onClick={handleResetAll}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset to defaults
+              </button>
+              {overrideCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="border-orange-300 text-orange-600 text-xs"
+                >
+                  {overrideCount} override{overrideCount !== 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // --- Detail Panel ---
 
 function DetailPanel({ area }: { area: QuoteArea }) {
   const updateArea = useQuoteStore((s) => s.updateArea);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   return (
     <div className="p-4 bg-muted/30 border-t space-y-5">
+      {/* Cleaning Schedule Button */}
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setScheduleOpen(true)}
+          className="gap-2"
+        >
+          <ClipboardCheck className="h-4 w-4" />
+          Modify Cleaning Schedule
+        </Button>
+        {area.frozenChecklist && area.frozenChecklist.length > 0 && (
+          <Badge variant="outline" className="text-xs">
+            {area.frozenChecklist.length} tasks
+          </Badge>
+        )}
+      </div>
+
+      <CleaningScheduleModal
+        area={area}
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-1">
