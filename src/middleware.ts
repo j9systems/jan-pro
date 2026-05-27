@@ -4,6 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Track custom cookies that must survive supabaseResponse reassignment
+  const customCookies: { name: string; value: string; options: Record<string, unknown> }[] = [];
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,6 +23,10 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
+          // Re-apply any custom cookies after supabaseResponse is reassigned
+          for (const c of customCookies) {
+            supabaseResponse.cookies.set(c.name, c.value, c.options);
+          }
         },
       },
     }
@@ -41,9 +48,6 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-
-  // Track the user's role for the cookie below
-  let userRole: string | null = null;
 
   // Fetch profile for authenticated users (role + status)
   if (
@@ -67,7 +71,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    userRole = profile?.role ?? null;
+    // Register role cookie — will be applied (and re-applied) on supabaseResponse
+    if (profile?.role) {
+      const cookieOpts = {
+        path: "/",
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax" as const,
+        maxAge: 60 * 60,
+      };
+      customCookies.push({ name: "x-user-role", value: profile.role, options: cookieOpts });
+      supabaseResponse.cookies.set("x-user-role", profile.role, cookieOpts);
+    }
   }
 
   // Redirect authenticated users away from login
@@ -75,18 +90,6 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
-  }
-
-  // Set role cookie LAST — after all Supabase operations that might
-  // reassign supabaseResponse via setAll()
-  if (userRole) {
-    supabaseResponse.cookies.set("x-user-role", userRole, {
-      path: "/",
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60,
-    });
   }
 
   return supabaseResponse;
