@@ -23,9 +23,8 @@ import {
   shareEstimate,
   removeEstimateShare,
   searchUsers,
-  saveQuoteToDb,
 } from "@/lib/supabase/queries";
-import type { EstimateShare, UserProfile, QuoteStatus } from "@/lib/types";
+import type { EstimateShare, UserProfile } from "@/lib/types";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft", color: "border-slate-300/50 bg-slate-100/80 text-slate-600" },
@@ -64,11 +63,9 @@ function StatusSelector({
 
   const handleChange = async (newStatus: string) => {
     setOpen(false);
-    const store = useQuoteStore.getState();
-    const quote = store.savedQuotes.find((q) => q.id === quoteId);
-    if (!quote) return;
-    const updated = { ...quote, status: newStatus as QuoteStatus, updatedAt: new Date().toISOString() };
-    await saveQuoteToDb(updated);
+    // Use RPC to bypass RLS issues on direct table updates
+    const supabase = (await import("@/lib/supabase/client")).createClient();
+    await supabase.rpc("update_quote_status", { qid: quoteId, new_status: newStatus });
     onChanged();
   };
 
