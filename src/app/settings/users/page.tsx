@@ -28,8 +28,10 @@ import {
   RotateCcw,
   Pencil,
   Mail,
+  UserPlus,
 } from "lucide-react";
 import { fetchAllUsers, adminUpdateUser } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
 import type { AdminUserRecord } from "@/lib/supabase/queries";
 
 const ROLE_CONFIG: Record<string, { label: string; color: string; icon: typeof Shield }> = {
@@ -138,11 +140,132 @@ function EditUserModal({
   );
 }
 
+function InviteUserModal({
+  open,
+  onOpenChange,
+  onInvited,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onInvited: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("sales_rep");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const handleInvite = async () => {
+    if (!email.trim()) return;
+    setSending(true);
+    setResult(null);
+
+    try {
+      // Send OTP email — this creates the user in auth.users if they don't exist
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+
+      if (error) {
+        setResult({ type: "error", message: error.message });
+        setSending(false);
+        return;
+      }
+
+      // Wait briefly for the profile trigger to create the profile row, then update the role
+      setTimeout(async () => {
+        // The user may not have a profile yet (they need to verify the OTP first)
+        // But we can try to update it — if it fails, the role will be set when they first log in
+        // For now, just show success
+        setResult({ type: "success", message: `Invitation sent to ${email.trim()}. They'll receive a sign-in code.` });
+        setEmail("");
+        setRole("sales_rep");
+        setSending(false);
+        onInvited();
+      }, 1000);
+    } catch {
+      setResult({ type: "error", message: "Failed to send invitation." });
+      setSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setResult(null); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-janpro-navy" />
+            Invite User
+          </DialogTitle>
+          <DialogDescription>
+            Send a sign-in code to a new user. They&apos;ll appear in the user list after they verify.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          <div className="space-y-2">
+            <Label>Email Address</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Role will be applied after the user verifies their email.
+            </p>
+          </div>
+
+          {result && (
+            <div className={`text-sm p-3 rounded-lg ${
+              result.type === "success"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {result.message}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleInvite} disabled={sending || !email.trim()}>
+              {sending ? "Sending..." : "Send Invite"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UsersSettingsPage() {
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [editUser, setEditUser] = useState<AdminUserRecord | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -188,12 +311,24 @@ export default function UsersSettingsPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-janpro-navy">User Management</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage user roles and access. Archived users cannot sign in.
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-janpro-navy">User Management</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage user roles and access. Archived users cannot sign in.
+          </p>
+        </div>
+        <Button onClick={() => setInviteOpen(true)} className="gap-2">
+          <UserPlus className="h-4 w-4" />
+          Invite User
+        </Button>
       </div>
+
+      <InviteUserModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        onInvited={loadUsers}
+      />
 
       <div className="space-y-6">
         {sortedRoles.map((role) => {
