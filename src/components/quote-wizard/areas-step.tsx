@@ -124,6 +124,7 @@ function RecordingBar({
   onAreasAdded: (ids: string[]) => void;
 }) {
   const clearTranscript = useQuoteStore((s) => s.clearTranscript);
+  const transcript = useQuoteStore((s) => s.currentQuote?.recordingTranscript ?? "");
 
   const [state, setState] = useState<RecordingState>("idle");
   const [analyzing, setAnalyzing] = useState(false);
@@ -136,6 +137,7 @@ function RecordingBar({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSentRef = useRef("");
   const analyzingRef = useRef(false);
+  const processedResultsRef = useRef(0); // Track how many results we've already appended
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
@@ -239,12 +241,14 @@ function RecordingBar({
     recognition.lang = "en-US";
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      for (let i = 0; i < event.results.length; i++) {
+      // Only process NEW results — skip ones we've already appended
+      for (let i = processedResultsRef.current; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
           const text = event.results[i][0].transcript.trim();
           if (text) {
             useQuoteStore.getState().appendTranscript(text);
           }
+          processedResultsRef.current = i + 1;
         }
       }
     };
@@ -293,6 +297,7 @@ function RecordingBar({
   const handleStart = () => {
     clearTranscript();
     lastSentRef.current = "";
+    processedResultsRef.current = 0;
     setState("recording");
     startRecognition();
     startInterval();
@@ -306,6 +311,7 @@ function RecordingBar({
   };
 
   const handleResume = () => {
+    processedResultsRef.current = 0; // Reset — new recognition instance starts fresh
     setState("recording");
     startRecognition();
     // Restart interval to reset the 15s window from now
@@ -336,8 +342,7 @@ function RecordingBar({
 
   if (!supported) return null;
 
-  const transcript = useQuoteStore.getState().currentQuote?.recordingTranscript;
-  const hasTranscript = !!transcript && transcript.trim().length > 0;
+  const hasTranscript = transcript.trim().length > 0;
 
   if (state === "idle") {
     return (
@@ -1096,7 +1101,7 @@ function DetailPanel({ area }: { area: QuoteArea }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
   return (
-    <div className="p-4 bg-muted/30 border-t space-y-5">
+    <div className="p-4 bg-muted/30 border-t space-y-5 overscroll-contain touch-pan-y">
       {/* Cleaning Schedule Button */}
       <div className="flex items-center gap-3">
         <Button
