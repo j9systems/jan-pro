@@ -65,7 +65,7 @@ export default function SignPage() {
       status: "signed",
     });
     saveQuote();
-    router.push("/dashboard");
+    router.push(`/quotes/${id}/bid-sheet`);
   };
 
   return (

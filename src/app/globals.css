@@ -76,3 +76,22 @@
     text-wrap: balance;
   }
 }
+
+/* Print styles for bid sheet */
+@media print {
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  header, footer, nav {
+    display: none !important;
+  }
+  @page {
+    margin: 0.5in;
+    size: letter;
+  }
+}

@@ -13,7 +13,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Edit, Presentation, Share2, X, UserPlus, Loader2 } from "lucide-react";
+import { ArrowLeft, Edit, Presentation, Share2, X, UserPlus, Loader2, FileText } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
@@ -347,6 +347,14 @@ export default function QuoteDetailPage() {
           <Button variant="outline" onClick={() => setShareOpen(true)} className="gap-2">
             <Share2 className="h-4 w-4" />
             Share
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/quotes/${id}/bid-sheet`)}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Bid Sheet
           </Button>
           <Button
             onClick={() => router.push(`/quotes/${id}/present`)}
