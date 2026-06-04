@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -1199,51 +1200,48 @@ function RateLevelSelector({ area }: { area: QuoteArea }) {
         ? levels[currentLevel - 1]
         : 2500;
 
+  const levelInfo = RATE_LEVEL_LABELS[currentLevel];
+  const rangeMin = levels ? levels[0] : 1500;
+  const rangeMax = levels ? levels[4] : 5000;
+
   return (
-    <div className="space-y-2">
-      <Label>Production Rate Level</Label>
-      <div className="flex items-center gap-1.5">
-        {[1, 2, 3, 4, 5].map((level) => {
-          const info = RATE_LEVEL_LABELS[level];
-          return (
-            <Tooltip key={level}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => updateArea(area.id, { rateLevel: level })}
-                  className={`h-8 w-8 rounded text-sm font-medium transition-colors ${
-                    currentLevel === level
-                      ? "bg-[#0a1e3d] text-white"
-                      : "bg-muted hover:bg-muted/80 text-foreground"
-                  }`}
-                >
-                  {level}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[220px]">
-                <p className="text-xs font-medium">{info.label}</p>
-                <p className="text-xs text-muted-foreground">{info.description}</p>
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Effective rate:{" "}
-        <span className="font-medium">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>Production Rate Level</Label>
+        <span className="text-sm font-semibold text-janpro-navy">
           {effectiveRate.toLocaleString()} sqft/hr
+          {area.productionRateOverride && area.productionRateOverride > 0 && (
+            <span className="ml-1 text-xs font-normal text-orange-600">(override)</span>
+          )}
         </span>
-        {area.productionRateOverride && area.productionRateOverride > 0 && (
-          <span className="ml-1 text-orange-600">(manual override)</span>
-        )}
+      </div>
+
+      <Slider
+        value={[currentLevel]}
+        onValueChange={([val]) => updateArea(area.id, { rateLevel: val })}
+        min={1}
+        max={5}
+        step={1}
+        className="w-full"
+      />
+
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>Heavy ({rangeMin.toLocaleString()})</span>
+        <span className="font-medium text-foreground">{levelInfo?.label}</span>
+        <span>Light ({rangeMax.toLocaleString()})</span>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {levelInfo?.description}
       </p>
+
       {!showOverride ? (
         <button
           type="button"
-          className="text-xs text-blue-600 hover:underline"
+          className="text-xs text-janpro-cyan hover:underline"
           onClick={() => setShowOverride(true)}
         >
-          or override manually
+          or enter exact rate manually
         </button>
       ) : (
         <div className="flex items-center gap-2">
