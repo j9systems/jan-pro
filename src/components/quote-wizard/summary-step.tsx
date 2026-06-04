@@ -21,9 +21,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
-import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
+import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost, getEffectiveProductionRate } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES, FLOOR_RATES_SQFT_PER_HR } from "@/lib/constants";
+import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES } from "@/lib/constants";
 
 interface ReviewFlag {
   type: "warning" | "info" | "success";
@@ -346,7 +346,7 @@ export function SummaryStep() {
                   <tbody>
                     {quote.areas.map((area) => {
                       const effectiveFreq = area.visitsPerWeek ?? quote.visitsPerWeek;
-                      const effectiveRate = area.productionRateOverride ?? FLOOR_RATES_SQFT_PER_HR[area.floorType] ?? 2500;
+                      const effectiveRate = getEffectiveProductionRate(area);
                       return (
                         <tr key={area.id} className="border-b last:border-0">
                           <td className="py-2.5 pr-3">
