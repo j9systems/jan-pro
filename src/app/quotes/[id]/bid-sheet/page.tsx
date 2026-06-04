@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -17,7 +26,7 @@ import {
   getEffectiveProductionRate,
   getEffectiveHourlyRate,
 } from "@/lib/calculator";
-import { ArrowLeft, Printer, Home } from "lucide-react";
+import { ArrowLeft, Download, Home, Send, Plus, X, Loader2 } from "lucide-react";
 
 export default function BidSheetPage() {
   const params = useParams();
@@ -25,6 +34,12 @@ export default function BidSheetPage() {
   const id = params.id as string;
   const { savedQuotes, currentQuote, loadQuote, loadQuotes } = useQuoteStore();
   const [mounted, setMounted] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emails, setEmails] = useState<string[]>([""]);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -51,6 +66,100 @@ export default function BidSheetPage() {
       </div>
     );
   }
+
+  const generatePdfBlob = async (): Promise<Blob | null> => {
+    if (!contentRef.current) return null;
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    const canvas = await html2canvas(contentRef.current, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+    });
+
+    const imgWidth = 210; // A4 width in mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const pdf = new jsPDF("p", "mm", "a4");
+
+    let position = 0;
+    const pageHeight = 297; // A4 height in mm
+
+    // Add pages as needed for long content
+    while (position < imgHeight) {
+      if (position > 0) pdf.addPage();
+      pdf.addImage(
+        canvas.toDataURL("image/jpeg", 0.95),
+        "JPEG", 0, -position, imgWidth, imgHeight
+      );
+      position += pageHeight;
+    }
+
+    return pdf.output("blob");
+  };
+
+  const handleDownloadPdf = async () => {
+    setGenerating(true);
+    const blob = await generatePdfBlob();
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${quote.companyName || "Quote"} - Bid Sheet.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    setGenerating(false);
+  };
+
+  const handleSendEmail = async () => {
+    const validEmails = emails.filter((e) => e.trim() && e.includes("@"));
+    if (validEmails.length === 0) return;
+
+    setSending(true);
+    setSendResult(null);
+
+    const blob = await generatePdfBlob();
+    if (!blob) {
+      setSendResult({ type: "error", message: "Failed to generate PDF." });
+      setSending(false);
+      return;
+    }
+
+    // Convert blob to base64
+    const reader = new FileReader();
+    const base64 = await new Promise<string>((resolve) => {
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]); // Remove data:application/pdf;base64, prefix
+      };
+      reader.readAsDataURL(blob);
+    });
+
+    try {
+      const res = await fetch("/api/send-bid-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: validEmails,
+          companyName: quote.companyName || "Quote",
+          pdfBase64: base64,
+        }),
+      });
+
+      if (res.ok) {
+        setSendResult({ type: "success", message: `Bid sheet sent to ${validEmails.join(", ")}` });
+        setEmails([""]);
+      } else {
+        const data = await res.json();
+        setSendResult({ type: "error", message: data.error || "Failed to send email." });
+      }
+    } catch {
+      setSendResult({ type: "error", message: "Failed to send email." });
+    }
+    setSending(false);
+  };
 
   const regionLabel = REGIONS.find((r) => r.value === quote.region)?.label ?? quote.region;
   // visitsLabel available if needed
@@ -83,8 +192,11 @@ export default function BidSheetPage() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
-              <Printer className="h-4 w-4" /> Print / Save PDF
+            <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={generating} className="gap-2">
+              <Download className="h-4 w-4" /> {generating ? "Generating..." : "Save PDF"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)} className="gap-2">
+              <Send className="h-4 w-4" /> Email
             </Button>
             <Button size="sm" onClick={() => router.push("/dashboard")} className="gap-2">
               <Home className="h-4 w-4" /> Dashboard
@@ -93,8 +205,67 @@ export default function BidSheetPage() {
         </div>
       </div>
 
+      {/* Email Modal */}
+      <Dialog open={emailOpen} onOpenChange={(v) => { setEmailOpen(v); if (!v) setSendResult(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-janpro-navy" />
+              Email Bid Sheet
+            </DialogTitle>
+            <DialogDescription>
+              Send the bid presentation as a PDF attachment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Recipients</Label>
+              {emails.map((email, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      const updated = [...emails];
+                      updated[i] = e.target.value;
+                      setEmails(updated);
+                    }}
+                    placeholder="name@company.com"
+                  />
+                  {emails.length > 1 && (
+                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setEmails(emails.filter((_, j) => j !== i))}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => setEmails([...emails, ""])}>
+                <Plus className="h-3 w-3" /> Add recipient
+              </Button>
+            </div>
+
+            {sendResult && (
+              <div className={`text-sm p-3 rounded-lg ${
+                sendResult.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}>
+                {sendResult.message}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEmailOpen(false)}>Cancel</Button>
+              <Button onClick={handleSendEmail} disabled={sending || emails.every((e) => !e.trim())} className="gap-2">
+                {sending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</> : <><Send className="h-4 w-4" /> Send</>}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Printable content */}
-      <div className="max-w-4xl mx-auto px-8 py-10 print:px-0 print:py-0 print:max-w-none">
+      <div ref={contentRef} className="max-w-4xl mx-auto px-8 py-10 print:px-0 print:py-0 print:max-w-none">
         {/* Header */}
         <div className="flex items-start justify-between mb-8 pb-6 border-b-2 border-janpro-navy">
           <div>
