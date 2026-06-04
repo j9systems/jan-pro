@@ -176,6 +176,8 @@ function rowToArea(row: any): QuoteArea {
     productionRateOverride: row.production_rate_override ?? undefined,
     frozenChecklist: (row.frozen_checklist as ChecklistSnapshot[]) || [],
     areaTemplateId: row.area_template_id ?? undefined,
+    rateLevel: row.rate_level ?? 3,
+    specialTasks: (row.special_tasks as Array<{ id: string; name: string; minutes: number; rate: number }>) || [],
     minsPerVisit: Number(row.mins_per_visit),
     costPerMonth: Number(row.cost_per_month),
   };
@@ -316,6 +318,8 @@ export async function saveQuoteToDb(quote: Quote): Promise<boolean> {
       visits_per_week: a.visitsPerWeek ?? null,
       production_rate_override: a.productionRateOverride ?? null,
       frozen_checklist: a.frozenChecklist,
+      rate_level: a.rateLevel ?? 3,
+      special_tasks: a.specialTasks ?? [],
       mins_per_visit: a.minsPerVisit,
       cost_per_month: a.costPerMonth,
     }));

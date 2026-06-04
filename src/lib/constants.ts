@@ -52,6 +52,30 @@ export const FLOOR_RATES_SQFT_PER_HR: Record<string, number> = {
   other: 2500,
 };
 
+// ISSA Production Rate Ranges per floor type
+// Levels 1-5: Level 1 = heavily obstructed (lowest rate), Level 5 = unobstructed (highest rate)
+// Level 3 = midpoint (default). Based on ISSA/GBA Outside Sales Quick Reference Guide.
+// Each entry: [level1, level2, level3, level4, level5] in sqft/hr
+export const ISSA_RATE_LEVELS: Record<string, [number, number, number, number, number]> = {
+  carpet:               [2000, 2800, 3500, 4200, 5000],
+  tile:                 [1500, 1875, 2250, 2625, 3000],
+  hard_floor_lvt_vinyl: [1500, 1875, 2250, 2625, 3000],
+  composite_flooring:   [1500, 1875, 2250, 2625, 3000],
+  laminate:             [1750, 2125, 2500, 2875, 3250],
+  stained_concrete:     [1500, 1800, 2100, 2400, 2700],
+  polished_concrete:    [1500, 1800, 2100, 2400, 2700],
+  hardwood:             [1500, 1875, 2250, 2625, 3000],
+  other:                [1500, 1875, 2250, 2625, 3000],
+};
+
+export const RATE_LEVEL_LABELS: Record<number, { label: string; description: string }> = {
+  1: { label: "1 — Heavy", description: "Heavily obstructed, cluttered, or high-density. Slowest cleaning rate." },
+  2: { label: "2 — Moderate-Heavy", description: "Moderately cluttered with some obstacles." },
+  3: { label: "3 — Standard", description: "Average obstruction level. ISSA midpoint rate." },
+  4: { label: "4 — Moderate-Light", description: "Mostly open with few obstacles." },
+  5: { label: "5 — Light", description: "Unobstructed, open space. Fastest cleaning rate." },
+};
+
 export const UNIT_RATES_MINS_PER_UNIT: Record<string, number> = {
   toilets: 2.5,
   urinals: 2.5,

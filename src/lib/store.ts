@@ -30,6 +30,8 @@ function createBlankArea(sortOrder: number): QuoteArea {
     productionRateOverride: undefined,
     frozenChecklist: [],
     areaTemplateId: undefined,
+    rateLevel: 3,
+    specialTasks: [],
     minsPerVisit: 0,
     costPerMonth: 0,
   };

@@ -11,6 +11,7 @@ import {
   SPECIAL_SERVICE_RATES,
   CPSWPA_SURCHARGE,
   PREMIUM_RATE_PER_SQFT,
+  ISSA_RATE_LEVELS,
 } from "./constants";
 import type { Quote, QuoteArea, InitialClean, Porter, SpecialService, DensityTier } from "./types";
 
@@ -39,25 +40,29 @@ export function getCarpetRate(
   return (rates.lo + rates.hi) / 2;
 }
 
-export function calculateAreaMinsPerVisit(
-  area: QuoteArea,
-  visitsPerWeek: number,
-  densityTier: DensityTier
-): number {
+// Get the effective production rate for an area, considering:
+// 1. Manual override (productionRateOverride) — highest priority
+// 2. ISSA level-based rate (rateLevel 1-5) — second priority
+// 3. Default floor type rate — fallback
+export function getEffectiveProductionRate(area: QuoteArea): number {
+  if (area.productionRateOverride && area.productionRateOverride > 0) {
+    return area.productionRateOverride;
+  }
+  const levels = ISSA_RATE_LEVELS[area.floorType];
+  if (levels && area.rateLevel >= 1 && area.rateLevel <= 5) {
+    return levels[area.rateLevel - 1]; // 0-indexed
+  }
+  return FLOOR_RATES_SQFT_PER_HR[area.floorType] ?? 2500;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function calculateAreaMinsPerVisit(area: QuoteArea, visitsPerWeek: number, densityTier: DensityTier): number {
   let mins = 0;
   const totalSqft = area.sqftTotal;
 
   if (totalSqft > 0) {
-    if (area.productionRateOverride && area.productionRateOverride > 0) {
-      // Use the per-area production rate override
-      mins += (totalSqft / area.productionRateOverride) * 60;
-    } else if (area.floorType === "carpet") {
-      const carpetRate = getCarpetRate(visitsPerWeek, densityTier);
-      mins += (totalSqft / carpetRate) * 60;
-    } else {
-      const rate = FLOOR_RATES_SQFT_PER_HR[area.floorType] ?? 2500;
-      mins += (totalSqft / rate) * 60;
-    }
+    const rate = getEffectiveProductionRate(area);
+    mins += (totalSqft / rate) * 60;
   }
 
   // Unit-based items from flexible record
@@ -68,7 +73,39 @@ export function calculateAreaMinsPerVisit(
     }
   }
 
+  // Special tasks — additional time per area
+  if (area.specialTasks) {
+    for (const task of area.specialTasks) {
+      if (task.minutes > 0) {
+        mins += task.minutes;
+      }
+    }
+  }
+
   return mins;
+}
+
+// Calculate cost including special tasks with their own rates
+export function calculateAreaCostWithSpecialTasks(
+  area: QuoteArea,
+  minsPerVisit: number,
+  visitsPerWeek: number,
+  hourlyRate: number
+): number {
+  // Base cost from floor + unit items (use the standard mins minus special task mins)
+  const specialTaskMins = (area.specialTasks || []).reduce((sum, t) => sum + (t.minutes || 0), 0);
+  const baseMins = minsPerVisit - specialTaskMins;
+  const baseCost = (baseMins / 60) * visitsPerWeek * hourlyRate * WEEKS_PER_MONTH;
+
+  // Special tasks at their own rates
+  let specialCost = 0;
+  for (const task of area.specialTasks || []) {
+    if (task.minutes > 0 && task.rate > 0) {
+      specialCost += (task.minutes / 60) * task.rate * visitsPerWeek * WEEKS_PER_MONTH;
+    }
+  }
+
+  return baseCost + specialCost;
 }
 
 export function calculateAreaCostPerMonth(
@@ -138,7 +175,9 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     const areaVisitsPerWeek = area.visitsPerWeek ?? quote.visitsPerWeek;
     const minsPerVisit = calculateAreaMinsPerVisit(area, areaVisitsPerWeek, facilityDensityTier);
     const areaHourlyRate = getEffectiveHourlyRate(areaVisitsPerWeek);
-    const costPerMonth = calculateAreaCostPerMonth(minsPerVisit, areaVisitsPerWeek, areaHourlyRate);
+    const costPerMonth = area.specialTasks?.length > 0
+      ? calculateAreaCostWithSpecialTasks(area, minsPerVisit, areaVisitsPerWeek, areaHourlyRate)
+      : calculateAreaCostPerMonth(minsPerVisit, areaVisitsPerWeek, areaHourlyRate);
     return { ...area, minsPerVisit, costPerMonth };
   });
 

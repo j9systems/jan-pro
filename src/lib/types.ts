@@ -62,6 +62,8 @@ export interface QuoteArea {
   productionRateOverride?: number;
   frozenChecklist: ChecklistSnapshot[];
   areaTemplateId?: string;
+  rateLevel: number; // 1-5, ISSA-anchored. 3 = midpoint (default)
+  specialTasks: Array<{ id: string; name: string; minutes: number; rate: number }>;
   // calculated
   minsPerVisit: number;
   costPerMonth: number;

@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
 import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES } from "@/lib/constants";
+import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES, FLOOR_RATES_SQFT_PER_HR } from "@/lib/constants";
 
 interface ReviewFlag {
   type: "warning" | "info" | "success";
@@ -336,36 +336,48 @@ export function SummaryStep() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="pb-2 pr-3 font-medium">Area</th>
-                      <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Sq Ft</th>
-                      <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Min/Visit</th>
+                      <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Sq Ft</th>
+                      <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Freq</th>
+                      <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Rate</th>
+                      <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Min/Visit</th>
                       <th className="pb-2 font-medium text-right whitespace-nowrap">Monthly</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {quote.areas.map((area) => (
-                      <tr key={area.id} className="border-b last:border-0">
-                        <td className="py-2.5 pr-3">
-                          <div className="font-medium">
-                            {area.areaName || `Area ${area.sortOrder}`}
-                            {area.quantity > 1 && (
-                              <span className="text-muted-foreground font-normal ml-1">×{area.quantity}</span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {getFloorLabel(area.floorType)} · {getAreaTypeLabel(area.areaType)}
-                          </div>
-                        </td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums">
-                          {area.sqftTotal.toLocaleString()}
-                        </td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums">
-                          {Math.round(area.minsPerVisit)}
-                        </td>
-                        <td className="py-2.5 text-right tabular-nums font-medium">
-                          {formatCurrency(area.costPerMonth)}
-                        </td>
-                      </tr>
-                    ))}
+                    {quote.areas.map((area) => {
+                      const effectiveFreq = area.visitsPerWeek ?? quote.visitsPerWeek;
+                      const effectiveRate = area.productionRateOverride ?? FLOOR_RATES_SQFT_PER_HR[area.floorType] ?? 2500;
+                      return (
+                        <tr key={area.id} className="border-b last:border-0">
+                          <td className="py-2.5 pr-3">
+                            <div className="font-medium">
+                              {area.areaName || `Area ${area.sortOrder}`}
+                              {area.quantity > 1 && (
+                                <span className="text-muted-foreground font-normal ml-1">×{area.quantity}</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {getFloorLabel(area.floorType)} · {getAreaTypeLabel(area.areaType)}
+                            </div>
+                          </td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums text-xs">
+                            {area.sqftTotal.toLocaleString()}
+                          </td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums text-xs">
+                            {effectiveFreq}x/wk
+                          </td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums text-xs">
+                            {effectiveRate.toLocaleString()}
+                          </td>
+                          <td className="py-2.5 pr-2 text-right tabular-nums text-xs">
+                            {Math.round(area.minsPerVisit)}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums font-medium">
+                            {formatCurrency(area.costPerMonth)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

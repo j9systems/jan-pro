@@ -69,7 +69,10 @@ import {
   AREA_TYPES,
   ALL_UNIT_ITEMS,
   UNIT_ITEMS_BY_AREA_TYPE,
+  ISSA_RATE_LEVELS,
+  RATE_LEVEL_LABELS,
 } from "@/lib/constants";
+import { generateId } from "@/lib/utils";
 import type { QuoteArea, FloorType, AreaType, ChecklistItem } from "@/lib/types";
 
 // --- AI Citation Tooltip ---
@@ -1163,12 +1166,221 @@ function DetailPanel({ area }: { area: QuoteArea }) {
         )}
       </div>
 
+      {/* Rate Level Selector */}
+      <RateLevelSelector area={area} />
+
       <UnitItemsPanel area={area} />
+
+      {/* Special Tasks */}
+      <SpecialTasksList area={area} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <PhotoUpload area={area} />
         <VoiceNotes area={area} />
       </div>
+    </div>
+  );
+}
+
+// --- Rate Level Selector ---
+
+function RateLevelSelector({ area }: { area: QuoteArea }) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const [showOverride, setShowOverride] = useState(
+    !!(area.productionRateOverride && area.productionRateOverride > 0)
+  );
+
+  const currentLevel = area.rateLevel ?? 3;
+  const levels = ISSA_RATE_LEVELS[area.floorType];
+  const effectiveRate =
+    area.productionRateOverride && area.productionRateOverride > 0
+      ? area.productionRateOverride
+      : levels
+        ? levels[currentLevel - 1]
+        : 2500;
+
+  return (
+    <div className="space-y-2">
+      <Label>Production Rate Level</Label>
+      <div className="flex items-center gap-1.5">
+        {[1, 2, 3, 4, 5].map((level) => {
+          const info = RATE_LEVEL_LABELS[level];
+          return (
+            <Tooltip key={level}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => updateArea(area.id, { rateLevel: level })}
+                  className={`h-8 w-8 rounded text-sm font-medium transition-colors ${
+                    currentLevel === level
+                      ? "bg-[#0a1e3d] text-white"
+                      : "bg-muted hover:bg-muted/80 text-foreground"
+                  }`}
+                >
+                  {level}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[220px]">
+                <p className="text-xs font-medium">{info.label}</p>
+                <p className="text-xs text-muted-foreground">{info.description}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Effective rate:{" "}
+        <span className="font-medium">
+          {effectiveRate.toLocaleString()} sqft/hr
+        </span>
+        {area.productionRateOverride && area.productionRateOverride > 0 && (
+          <span className="ml-1 text-orange-600">(manual override)</span>
+        )}
+      </p>
+      {!showOverride ? (
+        <button
+          type="button"
+          className="text-xs text-blue-600 hover:underline"
+          onClick={() => setShowOverride(true)}
+        >
+          or override manually
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={0}
+            className="w-32 h-8 text-sm"
+            placeholder="sqft/hr"
+            value={area.productionRateOverride ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              updateArea(area.id, {
+                productionRateOverride: val ? parseFloat(val) : undefined,
+              });
+            }}
+          />
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:underline"
+            onClick={() => {
+              updateArea(area.id, { productionRateOverride: undefined });
+              setShowOverride(false);
+            }}
+          >
+            clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Special Tasks List ---
+
+function SpecialTasksList({ area }: { area: QuoteArea }) {
+  const updateArea = useQuoteStore((s) => s.updateArea);
+  const tasks = area.specialTasks ?? [];
+
+  const addTask = () => {
+    updateArea(area.id, {
+      specialTasks: [
+        ...tasks,
+        { id: generateId(), name: "", minutes: 0, rate: 30 },
+      ],
+    });
+  };
+
+  const removeTask = (taskId: string) => {
+    updateArea(area.id, {
+      specialTasks: tasks.filter((t) => t.id !== taskId),
+    });
+  };
+
+  const updateTask = (
+    taskId: string,
+    patch: Partial<{ name: string; minutes: number; rate: number }>
+  ) => {
+    updateArea(area.id, {
+      specialTasks: tasks.map((t) =>
+        t.id === taskId ? { ...t, ...patch } : t
+      ),
+    });
+  };
+
+  const totalMinutes = tasks.reduce((sum, t) => sum + (t.minutes || 0), 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>Special Tasks</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          onClick={addTask}
+        >
+          <Plus className="h-3 w-3" />
+          Add Task
+        </Button>
+      </div>
+
+      {tasks.length > 0 && (
+        <div className="space-y-2">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-center gap-2">
+              <Input
+                placeholder="Task name"
+                className="h-8 text-sm flex-1"
+                value={task.name}
+                onChange={(e) => updateTask(task.id, { name: e.target.value })}
+              />
+              <Input
+                type="number"
+                min={0}
+                placeholder="Min"
+                className="h-8 text-sm w-20"
+                value={task.minutes || ""}
+                onChange={(e) =>
+                  updateTask(task.id, {
+                    minutes: e.target.value ? parseFloat(e.target.value) : 0,
+                  })
+                }
+              />
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">$/hr</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  placeholder="Rate"
+                  className="h-8 text-sm w-20"
+                  value={task.rate || ""}
+                  onChange={(e) =>
+                    updateTask(task.id, {
+                      rate: e.target.value ? parseFloat(e.target.value) : 0,
+                    })
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                onClick={() => removeTask(task.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Total: <span className="font-medium">{totalMinutes} min</span>{" "}
+            additional
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1475,9 +1687,17 @@ function AreaRow({
             <Input
               type="number"
               inputMode="numeric"
-              min={1}
-              value={area.quantity || ""}
-              onChange={(e) => updateArea(area.id, { quantity: parseInt(e.target.value) || 1 })}
+              min={0}
+              value={area.quantity === 0 ? "0" : area.quantity || ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  updateArea(area.id, { quantity: 0 });
+                } else {
+                  const parsed = parseInt(val);
+                  if (!isNaN(parsed)) updateArea(area.id, { quantity: parsed });
+                }
+              }}
               onFocus={clearOnFocus("quantity")}
               placeholder="1"
               className={`h-8 text-xs w-14 ${aiRing(area, "quantity")}`}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Sparkles, Cloud, CloudOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
+import { saveQuoteToDb } from "@/lib/supabase/queries";
 import { ProspectStep } from "@/components/quote-wizard/prospect-step";
 import { FacilityStep } from "@/components/quote-wizard/facility-step";
 import { AreasStep } from "@/components/quote-wizard/areas-step";
@@ -38,6 +39,43 @@ export default function NewQuotePage() {
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedRef = useRef<string>("");
+
+  // Debounced auto-save — 5 seconds after any change
+  const runAutoSave = useCallback(async () => {
+    const currentQuote = useQuoteStore.getState().currentQuote;
+    if (!currentQuote) return;
+
+    // Skip if nothing changed since last save
+    const fingerprint = currentQuote.updatedAt;
+    if (fingerprint === lastSavedRef.current) return;
+
+    setAutoSaveStatus("saving");
+    const success = await saveQuoteToDb(currentQuote);
+    if (success) {
+      lastSavedRef.current = fingerprint;
+      setAutoSaveStatus("saved");
+      // Reset to idle after 3 seconds
+      setTimeout(() => setAutoSaveStatus("idle"), 3000);
+    } else {
+      setAutoSaveStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!quote) return;
+    // Clear existing timer
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    // Set new 5-second debounce timer
+    autoSaveTimer.current = setTimeout(() => {
+      runAutoSave();
+    }, 5000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [quote?.updatedAt, runAutoSave]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!quote) return null;
 
@@ -81,7 +119,21 @@ export default function NewQuotePage() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Step Header */}
       <div className="mb-8">
-        {/* Progress bar */}
+        {/* Progress bar + save indicator */}
+        <div className="flex items-center justify-between mb-2">
+          <div />
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {autoSaveStatus === "saving" && (
+              <><Cloud className="h-3 w-3 animate-pulse" /> Saving...</>
+            )}
+            {autoSaveStatus === "saved" && (
+              <><Cloud className="h-3 w-3 text-emerald-500" /> Saved</>
+            )}
+            {autoSaveStatus === "error" && (
+              <><CloudOff className="h-3 w-3 text-destructive" /> Save failed</>
+            )}
+          </div>
+        </div>
         <div className="h-1 bg-muted/60 rounded-full mb-6 overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-janpro-navy to-janpro-cyan rounded-full transition-all duration-500 ease-out"
