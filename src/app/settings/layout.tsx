@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings, ArrowLeft, LayoutList, Users } from "lucide-react";
+import { Settings, ArrowLeft, LayoutList, Users, Sliders } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function getCookie(name: string): string | null {
@@ -15,6 +15,7 @@ function getCookie(name: string): string | null {
 const TABS = [
   { href: "/settings/templates", label: "Templates", icon: LayoutList },
   { href: "/settings/users", label: "Users", icon: Users },
+  { href: "/settings/rates", label: "Rates", icon: Sliders },
 ];
 
 export default function SettingsLayout({

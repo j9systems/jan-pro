@@ -7,6 +7,10 @@ export const WEEKS_PER_MONTH = 4.33;
 export const CPSWPA_SURCHARGE = 7;
 export const PREMIUM_RATE_PER_SQFT = 0.12;
 
+// Effective hourly rates by frequency. ISSA guideline range is $28-33/hr.
+// Currently global (same for all regions). To make per-region, restructure as
+// Record<string, Record<number, number>> keyed by region.
+// TODO: When JanPro provides per-market hourly rates, add regional lookup.
 export const FREQUENCY_HOURLY_RATES: Record<number, number> = {
   0.25: 31,
   0.5: 31,

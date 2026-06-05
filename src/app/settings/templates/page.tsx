@@ -27,6 +27,23 @@ import {
   deleteChecklistItem,
 } from "@/lib/supabase/queries";
 import type { FacilityTypeRecord, AreaTemplate, ChecklistItem } from "@/lib/types";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Frequency = "nightly" | "weekly" | "monthly";
 
@@ -58,6 +75,63 @@ function FrequencyPill({
           {f.charAt(0).toUpperCase() + f.slice(1)}
         </button>
       ))}
+    </div>
+  );
+}
+
+function SortableChecklistItem({
+  item,
+  onDelete,
+  onFrequencyChange,
+}: {
+  item: ChecklistItem;
+  onDelete: (id: string) => void;
+  onFrequencyChange: (item: ChecklistItem, freq: Frequency) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="p-3 rounded-lg border border-border/50 bg-white/50 space-y-2"
+    >
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing touch-none shrink-0 mt-0.5"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground/40" />
+        </button>
+        <span className="flex-1 text-sm leading-snug">{item.task}</span>
+        <button
+          onClick={() => onDelete(item.id)}
+          className="p-1 rounded text-muted-foreground hover:text-destructive shrink-0"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="pl-5">
+        <FrequencyPill
+          value={item.defaultFrequency as Frequency}
+          onChange={(f) => onFrequencyChange(item, f)}
+        />
+      </div>
     </div>
   );
 }
@@ -168,6 +242,28 @@ export default function TemplateSettingsPage() {
   const handleDeleteItem = async (id: string) => {
     await deleteChecklistItem(id);
     if (selectedTpl) loadItems(selectedTpl);
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    const reordered = arrayMove(items, oldIndex, newIndex);
+
+    // Optimistic update
+    setItems(reordered);
+
+    // Persist new display_order for each item
+    for (let i = 0; i < reordered.length; i++) {
+      await updateChecklistItem(reordered[i].id, { displayOrder: i } as Partial<ChecklistItem>);
+    }
   };
 
   if (loading) {
@@ -318,26 +414,25 @@ export default function TemplateSettingsPage() {
               </p>
             ) : (
               <>
-                {items.map((item) => (
-                  <div key={item.id} className="p-3 rounded-lg border border-border/50 bg-white/50 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <GripVertical className="h-3 w-3 text-muted-foreground/40 shrink-0 mt-0.5" />
-                      <span className="flex-1 text-sm leading-snug">{item.task}</span>
-                      <button
-                        onClick={() => handleDeleteItem(item.id)}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive shrink-0"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div className="pl-5">
-                      <FrequencyPill
-                        value={item.defaultFrequency as Frequency}
-                        onChange={(f) => handleUpdateItemFrequency(item, f)}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={items.map((i) => i.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {items.map((item) => (
+                      <SortableChecklistItem
+                        key={item.id}
+                        item={item}
+                        onDelete={handleDeleteItem}
+                        onFrequencyChange={handleUpdateItemFrequency}
                       />
-                    </div>
-                  </div>
-                ))}
+                    ))}
+                  </SortableContext>
+                </DndContext>
                 {items.length === 0 && (
                   <p className="text-xs text-muted-foreground py-4 text-center">
                     No checklist items yet. Add cleaning tasks below.
