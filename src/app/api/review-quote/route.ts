@@ -9,7 +9,7 @@ Your job is to identify potential issues, inconsistencies, or missing informatio
 
 ## What to check
 
-1. **Measurement sanity**: Do the dimensions make sense for the area type? A restroom that's 100x100 ft is likely wrong. A hallway that's 5x5 ft is suspicious. Flag obvious data entry errors.
+1. **Measurement sanity**: Do the dimensions make sense for the area type? A restroom that's 100x100 ft is likely wrong. A hallway that's 5x5 ft is suspicious. Flag obvious data entry errors. **IMPORTANT: If sqftOverride is true, the square footage was entered directly (e.g., from a laser measurement tool), NOT calculated from L×W. Do NOT flag these as suspicious just because there are no L×W values — only flag if the sqft number is clearly impossible for that area type (e.g., a restroom at 50,000 sqft).**
 
 2. **Transcript vs. data mismatches**: Compare what the salesperson said (in the transcript and AI citations) against what was actually entered. If they said "about 20 by 15" but the area shows 200x15, flag it.
 

@@ -64,6 +64,29 @@ toilets, urinals, mirrors, sinks, small_sutm, large_sutm, partitions, blinds, wi
 - "about 600 square feet" or "600 sqft" → sqft: 600, sqftOverride: true (direct sqft, no L×W)
 - "47 identical classrooms" or "there are 47 of these" → quantity: 47
 
+## Frequency Extraction
+- If the salesperson states a cleaning frequency for specific areas, extract it.
+- "restrooms are only three days a week" → visitsPerWeek: 3 on the restroom area
+- "offices five days, but the break room only three" → visitsPerWeek: 5 on offices, 3 on break room
+- If no frequency is mentioned for an area, do NOT include visitsPerWeek (the facility default applies).
+
+## Production Rate Inference (rateLevel 1-5)
+For EVERY new area, you MUST infer a production rate level from 1-5 based on your judgment:
+- Level 1 = Heavily obstructed, very high traffic, lots of furniture/obstacles. Slowest cleaning.
+- Level 2 = Moderately heavy obstruction.
+- Level 3 = Standard/average. Default for a typical room.
+- Level 4 = Mostly open, low traffic.
+- Level 5 = Unobstructed, wide open, barely used. Fastest cleaning.
+
+Base your judgment on ALL available context:
+- Room type: entry/lobby = high traffic (1-2), storage room = low traffic (4-5), standard office = 3
+- Floor type: carpet is slower than hard floor
+- Usage clues: "barely used" → 4-5, "everyone walks through here" → 1-2, "very cluttered" → 1-2
+- Obstacles: "lots of desks", "cubicles", "equipment everywhere" → 1-2
+- If no special context, use 3 (standard)
+
+This is a JUDGMENT CALL, not a formula. Think like an experienced cleaning estimator.
+
 ## Response Format
 
 Return ONLY valid JSON, no markdown, no explanation. Every field you set MUST have a corresponding citation — the exact words from the transcript that led you to set that value.
@@ -82,11 +105,14 @@ Format:
         "sqft": number_or_0,
         "sqftOverride": boolean,
         "quantity": number_default_1,
-        "unitItems": { "key": count }
+        "unitItems": { "key": count },
+        "rateLevel": number_1_to_5,
+        "visitsPerWeek": number_or_omit
       },
       "citations": {
         "fieldName": "exact quote from transcript",
-        "unitItems.key": "exact quote from transcript"
+        "unitItems.key": "exact quote from transcript",
+        "rateLevel": "brief reason for the rate judgment"
       }
     },
     {
@@ -100,7 +126,7 @@ Format:
   ]
 }
 
-The "citations" object maps each field name to the verbatim snippet from the transcript. For unit items, use dotted keys like "unitItems.toilets". For dimensions, cite the part where length/width were mentioned. Keep citations short — just the relevant phrase, not the whole transcript.
+The "citations" object maps each field name to the verbatim snippet from the transcript. For unit items, use dotted keys like "unitItems.toilets". For rateLevel, cite the reason for your judgment (e.g., "heavy traffic entry area with carpet"). Keep citations short.
 
 ## Important Rules
 1. Only create add_area when the speaker clearly describes a NEW area/room/space.
@@ -109,7 +135,10 @@ The "citations" object maps each field name to the verbatim snippet from the tra
 4. Do NOT duplicate areas that already exist. Check the existing areas provided.
 5. Be conservative — only extract what is clearly stated. Do not infer dimensions not spoken.
 6. The areaIndex in update_area is zero-based, referring to the existing areas array.
-7. ALWAYS extract extras like mats, fryers, microwaves, dishes, equipment when mentioned — these are critical for accurate time estimation.`;
+7. ALWAYS extract extras like mats, fryers, microwaves, dishes, equipment when mentioned — these are critical for accurate time estimation.
+8. ALWAYS include rateLevel (1-5) for every add_area action. Use your judgment based on all context.
+9. Do NOT include rateLevel in update_area actions — once set, only the salesperson adjusts it via the slider.
+10. Only include visitsPerWeek if the salesperson explicitly states a frequency for that specific area.`;
 
 export async function POST(request: Request) {
   try {

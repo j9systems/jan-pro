@@ -50,9 +50,14 @@ function InitialCleanSection() {
       quote.areas.length > 0
     ) {
       const totalSqft = quote.areas.reduce((sum, a) => sum + a.sqftTotal, 0);
+      // SUTM = individual fixtures (toilets + urinals + sinks + mirrors) + explicit small/large SUTM entries
       const totalSutm = quote.areas.reduce(
         (sum, a) =>
           sum +
+          (a.unitItems.toilets || 0) +
+          (a.unitItems.urinals || 0) +
+          (a.unitItems.sinks || 0) +
+          (a.unitItems.mirrors || 0) +
           (a.unitItems.small_sutm || 0) +
           (a.unitItems.large_sutm || 0),
         0

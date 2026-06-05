@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
@@ -84,6 +85,7 @@ function AISummaryCard() {
             unitItems: a.unitItems,
             notes: a.notes,
             aiCitations: a.aiCitations,
+            sqftOverride: a.sqftOverride,
             photos: a.photos?.length ? [`${a.photos.length} photos attached`] : [],
           })),
           transcript: quote.recordingTranscript || null,
@@ -252,6 +254,7 @@ function AISummaryCard() {
 export function SummaryStep() {
   const quote = useQuoteStore((s) => s.currentQuote);
   const updateQuote = useQuoteStore((s) => s.updateQuote);
+  const setStep = useQuoteStore((s) => s.setStep);
 
   if (!quote) return null;
 
@@ -341,14 +344,15 @@ export function SummaryStep() {
                       <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Rate</th>
                       <th className="pb-2 pr-2 font-medium text-right whitespace-nowrap">Min/Visit</th>
                       <th className="pb-2 font-medium text-right whitespace-nowrap">Monthly</th>
+                      <th className="pb-2 w-8" />
                     </tr>
                   </thead>
                   <tbody>
-                    {quote.areas.map((area) => {
+                    {quote.areas.map((area, areaIndex) => {
                       const effectiveFreq = area.visitsPerWeek ?? quote.visitsPerWeek;
                       const effectiveRate = getEffectiveProductionRate(area);
                       return (
-                        <tr key={area.id} className="border-b last:border-0">
+                        <tr key={area.id} className="border-b last:border-0 group">
                           <td className="py-2.5 pr-3">
                             <div className="font-medium">
                               {area.areaName || `Area ${area.sortOrder}`}
@@ -374,6 +378,19 @@ export function SummaryStep() {
                           </td>
                           <td className="py-2.5 text-right tabular-nums font-medium">
                             {formatCurrency(area.costPerMonth)}
+                          </td>
+                          <td className="py-2.5 pl-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sessionStorage.setItem("janpro-goto-area", String(areaIndex));
+                                setStep(2);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                              title="Edit this area"
+                            >
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                            </button>
                           </td>
                         </tr>
                       );

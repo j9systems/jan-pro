@@ -18,12 +18,10 @@ import {
   FLOOR_TYPES_V3,
   REGIONS,
   SPECIAL_SERVICES_CATALOG,
-  RATE_LEVEL_LABELS,
 } from "@/lib/constants";
 import {
   calculatePorterCost,
   calculateSpecialServiceCost,
-  getEffectiveProductionRate,
   getEffectiveHourlyRate,
 } from "@/lib/calculator";
 import { ArrowLeft, Download, Home, Send, Plus, X, Loader2 } from "lucide-react";
@@ -283,7 +281,7 @@ export default function BidSheetPage() {
         </div>
 
         {/* General Information */}
-        <section className="mb-8">
+        <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
             General Information
           </h2>
@@ -340,7 +338,7 @@ export default function BidSheetPage() {
         </section>
 
         {/* Bid Calculations */}
-        <section className="mb-8">
+        <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
             Bid Calculations
           </h2>
@@ -447,64 +445,8 @@ export default function BidSheetPage() {
           </div>
         </section>
 
-        {/* Area-by-Area Breakdown */}
-        <section className="mb-8">
-          <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-            Area Breakdown
-          </h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-janpro-navy/20 text-left">
-                <th className="pb-2 pr-2 font-semibold">Area</th>
-                <th className="pb-2 pr-2 font-semibold">Floor Type</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Qty</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Sq Ft</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Freq</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Rate</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Level</th>
-                <th className="pb-2 pr-2 font-semibold text-right">Min/Visit</th>
-                <th className="pb-2 font-semibold text-right">Monthly</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quote.areas.map((area) => {
-                const areaFreq = area.visitsPerWeek ?? quote.visitsPerWeek;
-                const areaRate = getEffectiveProductionRate(area);
-                const levelLabel = RATE_LEVEL_LABELS[area.rateLevel]?.label ?? `${area.rateLevel}`;
-                return (
-                  <tr key={area.id} className="border-b border-border/30">
-                    <td className="py-2 pr-2">
-                      <div className="font-medium">{area.areaName || `Area ${area.sortOrder}`}</div>
-                      {area.specialTasks?.length > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          +{area.specialTasks.reduce((s, t) => s + t.minutes, 0)} min special tasks
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 pr-2 text-xs">{getFloorLabel(area.floorType)}</td>
-                    <td className="py-2 pr-2 text-right">{area.quantity > 1 ? area.quantity : ""}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{area.sqftTotal.toLocaleString()}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{areaFreq}x</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{areaRate.toLocaleString()}</td>
-                    <td className="py-2 pr-2 text-right text-xs">{levelLabel}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{Math.round(area.minsPerVisit)}</td>
-                    <td className="py-2 text-right tabular-nums font-medium">{formatCurrency(area.costPerMonth)}</td>
-                  </tr>
-                );
-              })}
-              <tr className="border-t-2 border-janpro-navy/20 font-bold">
-                <td className="py-2" colSpan={3}>Totals</td>
-                <td className="py-2 text-right">{quote.totalSqft.toLocaleString()}</td>
-                <td colSpan={3}></td>
-                <td className="py-2 text-right">{Math.round(quote.areas.reduce((s, a) => s + a.minsPerVisit, 0))}</td>
-                <td className="py-2 text-right">{formatCurrency(quote.areas.reduce((s, a) => s + a.costPerMonth, 0))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
         {/* Flooring Breakdown */}
-        <section className="mb-8">
+        <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
             Flooring Breakdown
           </h2>
@@ -531,7 +473,7 @@ export default function BidSheetPage() {
         </section>
 
         {/* Density Calculation */}
-        <section className="mb-8">
+        <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
             Estimated Cleaning Rate Calculation
           </h2>
@@ -550,7 +492,7 @@ export default function BidSheetPage() {
 
         {/* Special Services Detail */}
         {quote.specialServices.length > 0 && (
-          <section className="mb-8">
+          <section className="mb-8" style={{ breakInside: "avoid" }}>
             <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
               Special Services
             </h2>
@@ -584,7 +526,7 @@ export default function BidSheetPage() {
 
         {/* Signature */}
         {quote.signatureData && (
-          <section className="mb-8">
+          <section className="mb-8" style={{ breakInside: "avoid" }}>
             <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
               Client Signature
             </h2>
