@@ -224,6 +224,7 @@ export function buildContractPayload(
     contact_name: quote.contactName,
     contact_email: quote.contactEmail,
     contact_phone: quote.contactPhone,
+    billing_email: quote.contactEmail,
     service_address: [quote.address, quote.city, quote.state]
       .filter(Boolean)
       .join(", "),
