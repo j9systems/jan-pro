@@ -1,7 +1,8 @@
 -- DocsAutomator e-signature integration
 -- Schema is managed via the Supabase dashboard; this file is the canonical
--- record of what must be run there (SQL editor) for this feature.
+-- record of this feature's schema changes.
 -- Project: czavgpxhzhidwhsxukom (Sales Bid Generator)
+-- APPLIED to the live database on 2026-06-12.
 
 -- ─── 1) documents: one row per generated document (contract, bid sheet) ──────
 
@@ -56,16 +57,15 @@ create policy "Users can update documents on accessible quotes"
 
 alter table public.quotes add column service_start_date date;
 
--- quotes.status is plain text (no CHECK constraint as of 2026-06-12), but the
--- SECURITY DEFINER functions are the real gatekeepers. Verify both accept the
--- new value:
---   * update_quote_status(qid uuid, new_status text) — if it validates against
---     an allowlist, add 'sent_for_signature'.
---   * save_quote(quote_data jsonb) — add service_start_date to the upsert
---     column list:  service_start_date = (quote_data->>'service_start_date')::date
--- Run in the dashboard SQL editor:
---   select pg_get_functiondef(oid) from pg_proc where proname in ('update_quote_status', 'save_quote');
--- and update the function bodies accordingly.
+-- quotes.status is plain text (no CHECK constraint as of 2026-06-12) and
+-- update_quote_status() does not validate against an allowlist, so the new
+-- 'sent_for_signature' value needs no function change.
+--
+-- save_quote(quote_data jsonb) WAS updated (applied 2026-06-12) to persist the
+-- new column. Three additions to the existing SECURITY DEFINER body:
+--   * insert column list:    service_start_date,
+--   * insert values:         NULLIF(quote_data->>'service_start_date', '')::date,
+--   * on conflict update:    service_start_date = EXCLUDED.service_start_date,
 
 -- ─── 3) Private storage bucket for executed contracts ────────────────────────
 
