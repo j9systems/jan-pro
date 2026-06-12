@@ -63,6 +63,7 @@ export default function SignPage() {
       signatureData,
       signedDate: new Date().toISOString(),
       status: "signed",
+      ...(startDate ? { serviceStartDate: startDate } : {}),
     });
     saveQuote();
     router.push(`/quotes/${id}/bid-sheet`);

@@ -10,6 +10,7 @@ import type {
   EstimateShare,
   RegionRecord,
   UserProfile,
+  QuoteDocument,
 } from "../types";
 
 // Lazy client — only created when first called at runtime, not at build time
@@ -66,8 +67,9 @@ function _quoteToRow(quote: Quote, userId: string) {
 }
 
 // Convert snake_case DB row to camelCase Quote
+// Exported for server-side use (API routes build document payloads from rows).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToQuote(row: any, areas: QuoteArea[]): Quote {
+export function rowToQuote(row: any, areas: QuoteArea[]): Quote {
   return {
     id: row.id,
     companyName: row.company_name,
@@ -114,6 +116,7 @@ function rowToQuote(row: any, areas: QuoteArea[]): Quote {
     status: row.status,
     signatureData: row.signature_data,
     signedDate: row.signed_date,
+    serviceStartDate: row.service_start_date ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -150,7 +153,7 @@ function _areaToRow(area: QuoteArea, quoteId: string) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function rowToArea(row: any): QuoteArea {
+export function rowToArea(row: any): QuoteArea {
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -280,6 +283,7 @@ export async function saveQuoteToDb(quote: Quote): Promise<boolean> {
     status: quote.status,
     signature_data: quote.signatureData || null,
     signed_date: quote.signedDate || null,
+    service_start_date: quote.serviceStartDate || null,
     porters: quote.porters,
     initial_clean_data: quote.initialCleanData,
     special_services: quote.specialServices,
@@ -830,6 +834,57 @@ export async function resetAreaOverrides(areaId: string): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+// ─── Documents (DocsAutomator) ───────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function rowToDocument(row: any): QuoteDocument {
+  return {
+    id: row.id,
+    quoteId: row.quote_id,
+    type: row.type,
+    automationId: row.automation_id,
+    docsautomatorDocId: row.docsautomator_doc_id ?? null,
+    pdfUrl: row.pdf_url ?? null,
+    googleDocUrl: row.google_doc_url ?? null,
+    signingSessionId: row.signing_session_id ?? null,
+    signer1Name: row.signer1_name ?? null,
+    signer1Email: row.signer1_email ?? null,
+    signer1Link: row.signer1_link ?? null,
+    signer1SignedAt: row.signer1_signed_at ?? null,
+    signer2Name: row.signer2_name ?? null,
+    signer2Email: row.signer2_email ?? null,
+    signer2Link: row.signer2_link ?? null,
+    signer2SignedAt: row.signer2_signed_at ?? null,
+    status: row.status,
+    signedPdfUrl: row.signed_pdf_url ?? null,
+    signedPdfStoragePath: row.signed_pdf_storage_path ?? null,
+    sentAt: row.sent_at ?? null,
+    signedAt: row.signed_at ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function fetchDocuments(quoteId: string): Promise<QuoteDocument[]> {
+  const { data, error } = await getSupabase()
+    .from("documents")
+    .select("*")
+    .eq("quote_id", quoteId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+  return data.map(rowToDocument);
+}
+
+export async function getContractSignedUrl(path: string): Promise<string | null> {
+  const { data, error } = await getSupabase().storage
+    .from("contracts")
+    .createSignedUrl(path, 3600); // 1 hour
+
+  if (error) return null;
+  return data.signedUrl;
 }
 
 // ─── Regions ──────────────────────────────────────────────────────────────────

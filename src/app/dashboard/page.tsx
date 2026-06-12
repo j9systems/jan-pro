@@ -8,35 +8,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
+import { QUOTE_STATUSES } from "@/lib/constants";
 
-type TabKey = "open" | "signed" | "lost" | "all";
+type TabKey = "open" | "pending_signature" | "signed" | "lost" | "all";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "open", label: "Open" },
+  { key: "pending_signature", label: "Pending Signature" },
   { key: "signed", label: "Signed" },
   { key: "lost", label: "Lost" },
   { key: "all", label: "All" },
 ];
 
 function getStatusBadge(status: string) {
-  switch (status) {
-    case "draft":
-      return <Badge className="border-slate-300/50 bg-slate-100/80 text-slate-600 text-xs">Draft</Badge>;
-    case "presented":
-      return <Badge className="border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan text-xs">Presented</Badge>;
-    case "signed":
-      return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-xs">Signed</Badge>;
-    case "lost":
-      return <Badge className="border-red-300/50 bg-red-50 text-red-600 text-xs">Lost</Badge>;
-    default:
-      return <Badge variant="outline" className="text-xs">{status}</Badge>;
-  }
+  const opt = QUOTE_STATUSES.find((o) => o.value === status);
+  if (!opt) return <Badge variant="outline" className="text-xs">{status}</Badge>;
+  return <Badge className={`text-xs ${opt.badgeClass}`}>{opt.label}</Badge>;
 }
 
 function filterByTab(quotes: ReturnType<typeof useQuoteStore.getState>["savedQuotes"], tab: TabKey) {
   switch (tab) {
     case "open":
-      return quotes.filter((q) => q.status === "draft" || q.status === "presented");
+      return quotes.filter(
+        (q) => q.status === "draft" || q.status === "presented" || q.status === "sent_for_signature"
+      );
+    case "pending_signature":
+      return quotes.filter((q) => q.status === "sent_for_signature");
     case "signed":
       return quotes.filter((q) => q.status === "signed");
     case "lost":
@@ -68,7 +65,10 @@ export default function DashboardPage() {
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const tabCounts: Record<TabKey, number> = {
-    open: savedQuotes.filter((q) => q.status === "draft" || q.status === "presented").length,
+    open: savedQuotes.filter(
+      (q) => q.status === "draft" || q.status === "presented" || q.status === "sent_for_signature"
+    ).length,
+    pending_signature: savedQuotes.filter((q) => q.status === "sent_for_signature").length,
     signed: savedQuotes.filter((q) => q.status === "signed").length,
     lost: savedQuotes.filter((q) => q.status === "lost").length,
     all: savedQuotes.length,
@@ -165,7 +165,7 @@ export default function DashboardPage() {
 
           {filteredQuotes.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              No {activeTab === "all" ? "" : activeTab} quotes found.
+              No {activeTab === "all" ? "" : TABS.find((t) => t.key === activeTab)?.label.toLowerCase()} quotes found.
             </div>
           ) : (
             filteredQuotes.map((quote, i) => (

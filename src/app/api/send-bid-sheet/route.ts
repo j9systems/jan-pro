@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import nodemailer from "nodemailer";
+import { sendMail, isEmailConfigured } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -27,38 +27,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PDF data required" }, { status: 400 });
     }
 
-    // Configure SMTP transport using env vars
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = parseInt(process.env.SMTP_PORT || "587");
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    const smtpFrom = process.env.SMTP_FROM || smtpUser;
-
-    if (!smtpHost || !smtpUser || !smtpPass) {
+    if (!isEmailConfigured()) {
       return NextResponse.json(
         { error: "Email service not configured. Please set SMTP environment variables." },
         { status: 500 }
       );
     }
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    });
-
     // Convert base64 to buffer for attachment
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
     const fileName = `${companyName || "Quote"} - Bid Presentation.pdf`;
 
     // Send email
-    await transporter.sendMail({
-      from: `"JAN-PRO QuoteBuilder" <${smtpFrom}>`,
-      to: to.join(", "),
+    await sendMail({
+      to,
       subject: `Bid Presentation — ${companyName || "Commercial Cleaning Quote"}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px;">

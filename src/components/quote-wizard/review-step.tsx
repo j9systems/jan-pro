@@ -14,9 +14,11 @@ import {
   AREA_TYPES,
 } from "@/lib/constants";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
+import { ContractPanel } from "@/components/contract-panel";
 
 export function ReviewStep() {
   const quote = useQuoteStore((s) => s.currentQuote);
+  const saveQuote = useQuoteStore((s) => s.saveQuote);
 
   if (!quote) return null;
 
@@ -332,6 +334,10 @@ export function ReviewStep() {
             )}
           </CardContent>
         </Card>
+
+        {/* Contract generation + e-signature (DocsAutomator). The quote must
+            be persisted before generating, so the panel saves it first. */}
+        <ContractPanel quote={quote} onBeforeGenerate={saveQuote} />
       </div>
     </div>
   );

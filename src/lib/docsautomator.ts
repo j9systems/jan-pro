@@ -1,0 +1,270 @@
+import type { Quote, RegionRecord } from "./types";
+import { formatCurrency } from "./utils";
+import {
+  FLOOR_TYPES_V3,
+  SPECIAL_SERVICES_CATALOG,
+  REGIONS,
+  VISITS_PER_WEEK_OPTIONS,
+} from "./constants";
+import { calculatePorterCost, calculateSpecialServiceCost } from "./calculator";
+
+// ─── DocsAutomator REST integration (server-only) ───────────────────────────
+//
+// Every assumption about the DocsAutomator API lives in this file so that
+// corrections after live discovery against the real workspace are one-file
+// changes.
+//
+// Verified from public docs:
+//   POST https://api.docsautomator.co/createDocument
+//   Authorization: Bearer <workspace API key>   (Settings > Workspace > API)
+//   Body: { docId: <automationId>, data: { ...placeholders, line_items_x: [...] } }
+//   Response: PDF URL + Google Doc URL + file id. When the template contains
+//   {{esign.signature_N}} / {{esign.date_N}} placeholders the response also
+//   includes a signing session and per-signer signing links, and a webhook
+//   fires with the signed PDF when all signers complete.
+//
+// TO CONFIRM in Phase-0 discovery against the live account (then update
+// normalizeCreateDocumentResponse / the request body below):
+//   * exact request field names for signer names/emails and sender selection
+//     (per-rep connected Gmail sender — Scale plan)
+//   * exact response field names for signing session id and signer links
+//   * webhook registration mechanism and payload shape
+
+const API_BASE = "https://api.docsautomator.co";
+
+export interface DocSigner {
+  name: string;
+  email: string;
+}
+
+export interface CreateDocumentResult {
+  docId: string | null;
+  pdfUrl: string | null;
+  googleDocUrl: string | null;
+  signingSessionId: string | null;
+  signerLinks: string[];
+  raw: Record<string, unknown>;
+}
+
+interface CreateDocumentArgs {
+  automationId: string;
+  data: Record<string, unknown>;
+  signers?: DocSigner[];
+  /** Connected sender account (per-rep Gmail) the signature request is sent from. */
+  senderEmail?: string;
+}
+
+function firstString(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return null;
+}
+
+// Normalize across plausible response field spellings until discovery pins
+// down the exact contract.
+export function normalizeCreateDocumentResponse(
+  raw: Record<string, unknown>
+): CreateDocumentResult {
+  const nested = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Record<
+    string,
+    unknown
+  >;
+
+  const signerLinks: string[] = [];
+  const linkContainers = [nested.signerLinks, nested.signingLinks, nested.signers];
+  for (const container of linkContainers) {
+    if (Array.isArray(container)) {
+      for (const entry of container) {
+        if (typeof entry === "string") signerLinks.push(entry);
+        else if (entry && typeof entry === "object") {
+          const link = firstString(entry as Record<string, unknown>, [
+            "signingLink",
+            "signing_link",
+            "link",
+            "url",
+          ]);
+          if (link) signerLinks.push(link);
+        }
+      }
+      if (signerLinks.length > 0) break;
+    }
+  }
+
+  return {
+    docId: firstString(nested, ["fileId", "file_id", "documentId", "docId", "id"]),
+    pdfUrl: firstString(nested, ["pdfUrl", "pdf_url", "url"]),
+    googleDocUrl: firstString(nested, ["googleDocUrl", "google_doc_url", "gdocUrl"]),
+    signingSessionId: firstString(nested, [
+      "signingSessionId",
+      "signing_session_id",
+      "sessionId",
+      "esignSessionId",
+    ]),
+    signerLinks,
+    raw,
+  };
+}
+
+export async function createDocument({
+  automationId,
+  data,
+  signers,
+  senderEmail,
+}: CreateDocumentArgs): Promise<CreateDocumentResult> {
+  const apiKey = process.env.DOCSAUTOMATOR_API_KEY;
+  if (!apiKey) {
+    throw new Error("DOCSAUTOMATOR_API_KEY is not configured");
+  }
+
+  const body: Record<string, unknown> = { docId: automationId, data };
+  if (signers && signers.length > 0) {
+    // Signer N maps to the {{esign.*_N}} placeholders in the template.
+    body.signers = signers.map((s, i) => ({
+      name: s.name,
+      email: s.email,
+      order: i + 1,
+    }));
+  }
+  if (senderEmail) {
+    body.senderEmail = senderEmail;
+  }
+
+  const res = await fetch(`${API_BASE}/createDocument`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`DocsAutomator createDocument failed (${res.status}): ${text}`);
+  }
+
+  const raw = (await res.json()) as Record<string, unknown>;
+  return normalizeCreateDocumentResponse(raw);
+}
+
+export function verifyWebhookSecret(request: Request): boolean {
+  const secret = process.env.DOCSAUTOMATOR_WEBHOOK_SECRET;
+  if (!secret) return false;
+  const url = new URL(request.url);
+  const provided =
+    request.headers.get("x-webhook-secret") ||
+    request.headers.get("x-docsautomator-secret") ||
+    url.searchParams.get("secret");
+  return provided === secret;
+}
+
+// ─── Contract payload ────────────────────────────────────────────────────────
+//
+// Placeholder names below are the contract template's vocabulary. The Google
+// Doc template (rebuilt from Corey's red-marked Services Agreement) must use
+// exactly these {{placeholders}}.
+
+const DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+};
+
+function formatDate(value?: string): string {
+  if (!value) return "";
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", DATE_FORMAT);
+}
+
+export interface ContractPayloadOptions {
+  serviceStartDate?: string;
+  rep: { name: string; email: string };
+}
+
+export function buildContractPayload(
+  quote: Quote,
+  region: RegionRecord | null,
+  { serviceStartDate, rep }: ContractPayloadOptions
+): Record<string, unknown> {
+  const regionLabel =
+    REGIONS.find((r) => r.value === quote.region)?.label ?? quote.region;
+  const visitsLabel =
+    VISITS_PER_WEEK_OPTIONS.find((v) => v.value === quote.visitsPerWeek)?.label ??
+    `${quote.visitsPerWeek}x`;
+  const monthly = quote.quotedMonthly || quote.calculatedMonthly;
+
+  const floorLabel = (value: string) =>
+    FLOOR_TYPES_V3.find((f) => f.value === value)?.label ?? value;
+
+  // Floor-type rollup (same aggregation the bid sheet and review step use)
+  const floorTotals = new Map<string, number>();
+  for (const area of quote.areas) {
+    floorTotals.set(
+      area.floorType,
+      (floorTotals.get(area.floorType) || 0) + area.sqftTotal
+    );
+  }
+
+  const porterMonthly = quote.porters.reduce(
+    (sum, p) => sum + calculatePorterCost(p),
+    0
+  );
+
+  return {
+    // Region / operating entity (Corey's May 26 mapping, from regions table)
+    operating_entity: region?.operatingEntity ?? "",
+    franchise_development_name: region?.franchiseDevelopmentName ?? "",
+    region_name: regionLabel,
+
+    // Client
+    company_name: quote.companyName,
+    contact_name: quote.contactName,
+    contact_email: quote.contactEmail,
+    contact_phone: quote.contactPhone,
+    service_address: [quote.address, quote.city, quote.state]
+      .filter(Boolean)
+      .join(", "),
+
+    // Service terms
+    monthly_price: formatCurrency(monthly),
+    visits_per_week: visitsLabel,
+    service_frequency: `${visitsLabel} per week`,
+    service_start_date: formatDate(serviceStartDate ?? quote.serviceStartDate),
+    agreement_date: formatDate(new Date().toISOString()),
+    facility_type: quote.facilityType,
+    total_sqft: quote.totalSqft.toLocaleString(),
+    cpswpa_surcharge: quote.state === "CA" && quote.cpswpaEnabled ? "$7.00" : "",
+    premium_monthly:
+      quote.premiumTreatmentEnabled && quote.premiumMonthly > 0
+        ? formatCurrency(quote.premiumMonthly)
+        : "",
+    initial_clean_cost: quote.initialCleanData.enabled
+      ? formatCurrency(quote.initialCleanData.totalCost)
+      : "",
+    porter_monthly: porterMonthly > 0 ? formatCurrency(porterMonthly) : "",
+
+    // Rep
+    rep_name: rep.name,
+    rep_email: rep.email,
+
+    // Line items
+    line_items_floor_types: Array.from(floorTotals.entries()).map(
+      ([key, sqft]) => ({
+        floor_type: floorLabel(key),
+        sqft: sqft.toLocaleString(),
+      })
+    ),
+    line_items_special_services: quote.specialServices.map((s) => {
+      const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
+      return {
+        service: catalog?.label ?? s.serviceType,
+        quantity: `${s.sqftOrUnits} ${catalog?.unit ?? "units"}`,
+        frequency: s.frequency,
+        price: formatCurrency(calculateSpecialServiceCost(s)),
+      };
+    }),
+  };
+}

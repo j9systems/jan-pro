@@ -252,6 +252,45 @@ export const SPECIAL_SERVICES_CATALOG = [
   { key: "blinds_cleaning", label: "Blinds Cleaning", category: "Monthly Add-Ons", unit: "units" },
 ] as const;
 
+// Single source of truth for quote status display (badge + dot styling).
+export const QUOTE_STATUSES: {
+  value: string;
+  label: string;
+  badgeClass: string;
+  dotClass: string;
+}[] = [
+  {
+    value: "draft",
+    label: "Draft",
+    badgeClass: "border-slate-300/50 bg-slate-100/80 text-slate-600",
+    dotClass: "bg-slate-400",
+  },
+  {
+    value: "presented",
+    label: "Presented",
+    badgeClass: "border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan",
+    dotClass: "bg-janpro-cyan",
+  },
+  {
+    value: "sent_for_signature",
+    label: "Pending Signature",
+    badgeClass: "border-amber-400/40 bg-amber-50 text-amber-600",
+    dotClass: "bg-amber-500",
+  },
+  {
+    value: "signed",
+    label: "Signed",
+    badgeClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
+    dotClass: "bg-emerald-500",
+  },
+  {
+    value: "lost",
+    label: "Lost",
+    badgeClass: "border-red-300/50 bg-red-50 text-red-600",
+    dotClass: "bg-red-500",
+  },
+];
+
 export const FREQUENCY_OPTIONS = [
   "Monthly",
   "Quarterly",

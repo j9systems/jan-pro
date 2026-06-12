@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Edit, Presentation, Share2, X, UserPlus, Loader2, FileText } from "lucide-react";
 import { useQuoteStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
-import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3, SPECIAL_SERVICES_CATALOG } from "@/lib/constants";
+import { REGIONS, VISITS_PER_WEEK_OPTIONS, FLOOR_TYPES_V3, SPECIAL_SERVICES_CATALOG, QUOTE_STATUSES } from "@/lib/constants";
+import { ContractPanel } from "@/components/contract-panel";
 import { calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
 import {
   fetchEstimateShares,
@@ -26,17 +27,10 @@ import {
 } from "@/lib/supabase/queries";
 import type { EstimateShare, UserProfile } from "@/lib/types";
 
-const STATUS_OPTIONS = [
-  { value: "draft", label: "Draft", color: "border-slate-300/50 bg-slate-100/80 text-slate-600" },
-  { value: "presented", label: "Presented", color: "border-janpro-cyan/30 bg-janpro-cyan/10 text-janpro-cyan" },
-  { value: "signed", label: "Signed", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" },
-  { value: "lost", label: "Lost", color: "border-red-300/50 bg-red-50 text-red-600" },
-];
-
 function getStatusBadge(status: string) {
-  const opt = STATUS_OPTIONS.find((o) => o.value === status);
+  const opt = QUOTE_STATUSES.find((o) => o.value === status);
   if (!opt) return <Badge variant="outline" className="text-sm">{status}</Badge>;
-  return <Badge className={`text-sm ${opt.color}`}>{opt.label}</Badge>;
+  return <Badge className={`text-sm ${opt.badgeClass}`}>{opt.label}</Badge>;
 }
 
 function StatusSelector({
@@ -83,8 +77,8 @@ function StatusSelector({
         {getStatusBadge(currentStatus)}
       </button>
       {open && (
-        <div className="absolute left-0 top-full mt-1 w-40 rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-glass-lg overflow-hidden animate-fadeIn z-50">
-          {STATUS_OPTIONS.map((opt) => (
+        <div className="absolute left-0 top-full mt-1 w-44 rounded-xl border border-white/60 bg-white/95 backdrop-blur-xl shadow-glass-lg overflow-hidden animate-fadeIn z-50">
+          {QUOTE_STATUSES.map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -93,12 +87,7 @@ function StatusSelector({
                 currentStatus === opt.value ? "bg-muted/30 font-medium" : ""
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${
-                opt.value === "draft" ? "bg-slate-400" :
-                opt.value === "presented" ? "bg-janpro-cyan" :
-                opt.value === "signed" ? "bg-emerald-500" :
-                "bg-red-500"
-              }`} />
+              <span className={`w-2 h-2 rounded-full ${opt.dotClass}`} />
               {opt.label}
             </button>
           ))}
@@ -548,6 +537,9 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Contract generation + e-signature (DocsAutomator) */}
+        <ContractPanel quote={quote} />
 
         {/* Signature */}
         {quote.status === "signed" && quote.signatureData && (

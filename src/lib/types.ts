@@ -163,7 +163,47 @@ export type Region =
 
 export type DensityTier = "low" | "medium" | "high";
 
-export type QuoteStatus = "draft" | "presented" | "signed" | "lost";
+export type QuoteStatus =
+  | "draft"
+  | "presented"
+  | "sent_for_signature"
+  | "signed"
+  | "lost";
+
+export type DocumentType = "contract" | "bid_sheet";
+
+export type DocumentStatus =
+  | "pending_review"
+  | "sent"
+  | "partially_signed"
+  | "signed"
+  | "voided";
+
+export interface QuoteDocument {
+  id: string;
+  quoteId: string;
+  type: DocumentType;
+  automationId: string;
+  docsautomatorDocId: string | null;
+  pdfUrl: string | null;
+  googleDocUrl: string | null;
+  signingSessionId: string | null;
+  signer1Name: string | null;
+  signer1Email: string | null;
+  signer1Link: string | null;
+  signer1SignedAt: string | null;
+  signer2Name: string | null;
+  signer2Email: string | null;
+  signer2Link: string | null;
+  signer2SignedAt: string | null;
+  status: DocumentStatus;
+  signedPdfUrl: string | null;
+  signedPdfStoragePath: string | null;
+  sentAt: string | null;
+  signedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Quote {
   id: string;
@@ -211,6 +251,7 @@ export interface Quote {
   status: QuoteStatus;
   signatureData?: string;
   signedDate?: string;
+  serviceStartDate?: string;
   recordingTranscript: string;
   createdAt: string;
   updatedAt: string;
