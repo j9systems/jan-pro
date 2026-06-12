@@ -120,7 +120,11 @@ export async function POST(request: Request) {
         signer2_name: rep.name,
         signer2_email: rep.email,
         signer2_link: result.signerLinks[1] ?? null,
-        status: "pending_review",
+        // DocsAutomator is in "Send via Email" mode: creating the document
+        // emails the client the signing invitation immediately, so the
+        // document is already out the door at generation time.
+        status: "sent",
+        sent_at: new Date().toISOString(),
         created_by: user.id,
       })
       .select()
@@ -132,6 +136,16 @@ export async function POST(request: Request) {
         { error: "Document generated but could not be saved." },
         { status: 500 }
       );
+    }
+
+    // Generation == sent (DocsAutomator emailed the client), so advance the
+    // quote into the signature pipeline.
+    const { error: statusError } = await supabase.rpc("update_quote_status", {
+      qid: quoteId,
+      new_status: "sent_for_signature",
+    });
+    if (statusError) {
+      console.error("Quote status update error:", statusError.message);
     }
 
     return NextResponse.json({

@@ -16,7 +16,6 @@ import {
 import {
   FileSignature,
   Loader2,
-  Send,
   PenLine,
   ExternalLink,
   RefreshCw,
@@ -27,7 +26,7 @@ import type { Quote, QuoteDocument } from "@/lib/types";
 
 const DOC_STATUS: Record<string, { label: string; badgeClass: string }> = {
   pending_review: {
-    label: "Ready for review",
+    label: "Ready",
     badgeClass: "border-slate-300/50 bg-slate-100/80 text-slate-600",
   },
   sent: {
@@ -58,9 +57,11 @@ interface GeneratedDoc {
 export function ContractPanel({
   quote,
   onBeforeGenerate,
+  onChanged,
 }: {
   quote: Quote;
   onBeforeGenerate?: () => Promise<void>;
+  onChanged?: () => void;
 }) {
   const [documents, setDocuments] = useState<QuoteDocument[]>([]);
   const [startDateOpen, setStartDateOpen] = useState(false);
@@ -68,8 +69,6 @@ export function ContractPanel({
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedDoc | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [sendEmail, setSendEmail] = useState(quote.contactEmail || "");
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
@@ -100,6 +99,7 @@ export function ContractPanel({
       setStartDateOpen(false);
       setPreviewOpen(true);
       await loadDocuments();
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate contract");
     } finally {
@@ -107,33 +107,8 @@ export function ContractPanel({
     }
   };
 
-  const handleSend = async (mode: "sign_now" | "email") => {
-    if (!generated) return;
-    setSending(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/documents/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          documentId: generated.documentId,
-          mode,
-          ...(mode === "email" ? { recipientEmail: sendEmail } : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send");
-      if (mode === "sign_now" && data.signer1Link) {
-        window.open(data.signer1Link, "_blank");
-      }
-      setPreviewOpen(false);
-      setGenerated(null);
-      await loadDocuments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send");
-    } finally {
-      setSending(false);
-    }
+  const openLink = (link: string | null) => {
+    if (link) window.open(link, "_blank");
   };
 
   const handleOpenSignedPdf = async (doc: QuoteDocument) => {
@@ -146,6 +121,11 @@ export function ContractPanel({
     }
     if (doc.signedPdfUrl) window.open(doc.signedPdfUrl, "_blank");
   };
+
+  // After the client (signer 1) signs, the next link to open is the rep's
+  // (signer 2) countersignature link.
+  const nextSignerLink = (doc: QuoteDocument) =>
+    doc.status === "partially_signed" ? doc.signer2Link : doc.signer1Link;
 
   const docStatusBadge = (status: string) => {
     const cfg = DOC_STATUS[status];
@@ -181,88 +161,86 @@ export function ContractPanel({
         )}
         {documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No contract generated yet. Generate the service agreement to collect
-            signatures on-site or by email.
+            No contract generated yet. Generating the agreement emails it to the
+            client for signature and gives you a link to sign on this device.
           </p>
         ) : (
           <div className="border rounded-md divide-y">
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium">
-                    {doc.type === "contract" ? "Service Agreement" : "Bid Sheet"}
-                  </span>
-                  {docStatusBadge(doc.status)}
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(doc.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {doc.status === "signed" &&
-                  (doc.signedPdfStoragePath || doc.signedPdfUrl) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1 text-xs"
-                      onClick={() => handleOpenSignedPdf(doc)}
-                    >
-                      <FileCheck2 className="h-3 w-3" />
-                      Signed PDF
-                    </Button>
-                  ) : (
-                    doc.pdfUrl && (
+            {documents.map((doc) => {
+              const link = nextSignerLink(doc);
+              const canSign =
+                doc.status === "sent" ||
+                doc.status === "partially_signed" ||
+                doc.status === "pending_review";
+              return (
+                <div
+                  key={doc.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium">
+                      {doc.type === "contract" ? "Service Agreement" : "Bid Sheet"}
+                    </span>
+                    {docStatusBadge(doc.status)}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {doc.status === "signed" &&
+                    (doc.signedPdfStoragePath || doc.signedPdfUrl) ? (
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-7 gap-1 text-xs"
-                        onClick={() => window.open(doc.pdfUrl!, "_blank")}
+                        onClick={() => handleOpenSignedPdf(doc)}
                       >
-                        <ExternalLink className="h-3 w-3" />
-                        View PDF
+                        <FileCheck2 className="h-3 w-3" />
+                        Signed PDF
                       </Button>
-                    )
-                  )}
-                  {(doc.status === "pending_review" ||
-                    doc.status === "sent" ||
-                    doc.status === "partially_signed") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1 text-xs"
-                      onClick={() => {
-                        setGenerated({
-                          documentId: doc.id,
-                          pdfUrl: doc.pdfUrl,
-                          signer1Link: doc.signer1Link,
-                          signer2Link: doc.signer2Link,
-                        });
-                        setSendEmail(doc.signer1Email || quote.contactEmail || "");
-                        setError(null);
-                        setPreviewOpen(true);
-                      }}
-                    >
-                      <PenLine className="h-3 w-3" />
-                      {doc.status === "pending_review" ? "Review & Sign" : "Signing Links"}
-                    </Button>
-                  )}
+                    ) : (
+                      <>
+                        {doc.pdfUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => window.open(doc.pdfUrl!, "_blank")}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Preview
+                          </Button>
+                        )}
+                        {canSign && link && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => openLink(link)}
+                          >
+                            <PenLine className="h-3 w-3" />
+                            Sign Now
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
 
-      {/* Start date dialog (start date is contract-specific — collected here) */}
+      {/* Start date dialog — generation also sends, so confirm intent here */}
       <Dialog open={startDateOpen} onOpenChange={setStartDateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Generate Service Agreement</DialogTitle>
+            <DialogTitle>Generate &amp; Send Service Agreement</DialogTitle>
             <DialogDescription>
-              The agreement is generated from the quote data. Confirm the
-              proposed service start date for the contract.
+              This generates the agreement from the quote and emails it to the
+              client{quote.contactEmail ? ` (${quote.contactEmail})` : ""} for
+              signature. You&apos;ll also get a link to sign on this device.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -286,21 +264,21 @@ export function ContractPanel({
                 ) : (
                   <FileSignature className="h-4 w-4" />
                 )}
-                {generating ? "Generating..." : "Generate"}
+                {generating ? "Generating..." : "Generate & Send"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Preview + sign/send dialog — mandatory human review before sending */}
+      {/* Preview + on-device signing dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Review Contract</DialogTitle>
+            <DialogTitle>Contract Sent</DialogTitle>
             <DialogDescription>
-              Review the generated agreement, then sign on this device or email
-              the signature request to the client.
+              The agreement has been emailed to the client for signature. Review
+              it below, or hand them this device to sign now.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 border rounded-md overflow-hidden bg-muted/30">
@@ -319,51 +297,32 @@ export function ContractPanel({
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
             <Button
-              onClick={() => handleSend("sign_now")}
-              disabled={sending || !generated?.signer1Link}
+              onClick={() => openLink(generated?.signer1Link ?? null)}
+              disabled={!generated?.signer1Link}
               className="gap-2"
             >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <PenLine className="h-4 w-4" />
-              )}
+              <PenLine className="h-4 w-4" />
               Sign Now (on this device)
             </Button>
-            <div className="flex flex-1 items-center gap-2">
-              <Input
-                value={sendEmail}
-                onChange={(e) => setSendEmail(e.target.value)}
-                placeholder="client@company.com"
-                type="email"
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                onClick={() => handleSend("email")}
-                disabled={sending || !sendEmail}
-                className="gap-2 shrink-0"
-              >
-                <Send className="h-4 w-4" />
-                Send for Signature
-              </Button>
-            </div>
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => {
                 setPreviewOpen(false);
                 setStartDateOpen(true);
               }}
-              disabled={sending}
-              className="gap-2 shrink-0"
+              className="gap-2"
             >
               <RefreshCw className="h-4 w-4" />
-              Regenerate
+              Regenerate &amp; Resend
+            </Button>
+            <div className="flex-1" />
+            <Button variant="ghost" onClick={() => setPreviewOpen(false)}>
+              Done
             </Button>
           </div>
           {generated?.signer2Link && (
             <p className="text-xs text-muted-foreground">
-              After the client signs, complete the rep signature:{" "}
+              After the client signs, the rep countersignature link:{" "}
               <a
                 href={generated.signer2Link}
                 target="_blank"

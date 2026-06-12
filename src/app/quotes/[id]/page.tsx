@@ -539,7 +539,7 @@ export default function QuoteDetailPage() {
         )}
 
         {/* Contract generation + e-signature (DocsAutomator) */}
-        <ContractPanel quote={quote} />
+        <ContractPanel quote={quote} onChanged={() => loadQuotes()} />
 
         {/* Signature */}
         {quote.status === "signed" && quote.signatureData && (
