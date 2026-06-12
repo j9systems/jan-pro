@@ -236,6 +236,12 @@ export function buildContractPayload(
     agreement_date: formatDate(new Date().toISOString()),
     facility_type: quote.facilityType,
     total_sqft: quote.totalSqft.toLocaleString(),
+    num_restrooms: String(quote.numRestrooms),
+    // Not captured in the quote wizard yet — blank in the doc until JanPro
+    // asks for a field (rep catches it in the mandatory preview).
+    cleaning_time: "",
+    // Per-region notice address isn't stored in the regions table yet.
+    region_office_address: "",
     cpswpa_surcharge: quote.state === "CA" && quote.cpswpaEnabled ? "$7.00" : "",
     premium_monthly:
       quote.premiumTreatmentEnabled && quote.premiumMonthly > 0
@@ -251,6 +257,16 @@ export function buildContractPayload(
     rep_email: rep.email,
 
     // Line items
+    line_items_sow: quote.areas.flatMap((area) =>
+      (area.frozenChecklist || [])
+        .filter((item) => item.frequency !== "excluded")
+        .map((item) => ({
+          area: area.areaName || `Area ${area.sortOrder}`,
+          task: item.task,
+          frequency:
+            item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
+        }))
+    ),
     line_items_floor_types: Array.from(floorTotals.entries()).map(
       ([key, sqft]) => ({
         floor_type: floorLabel(key),
