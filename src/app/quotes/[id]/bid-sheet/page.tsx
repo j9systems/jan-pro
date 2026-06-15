@@ -17,12 +17,11 @@ import { formatCurrency } from "@/lib/utils";
 import {
   FLOOR_TYPES_V3,
   REGIONS,
-  SPECIAL_SERVICES_CATALOG,
+  VISITS_PER_WEEK_OPTIONS,
 } from "@/lib/constants";
 import {
   calculatePorterCost,
   calculateSpecialServiceCost,
-  getEffectiveHourlyRate,
 } from "@/lib/calculator";
 import { ArrowLeft, Download, Home, Send, Plus, X, Loader2 } from "lucide-react";
 
@@ -171,15 +170,11 @@ export default function BidSheetPage() {
     floorBreakdown.set(key, (floorBreakdown.get(key) || 0) + area.sqftTotal);
   }
 
-  // Calculate facility density
-  const facilityDensity = quote.numEmployees > 0 ? Math.round(quote.totalSqft / quote.numEmployees) : 0;
-  const densityLabel = facilityDensity < 200 ? "Low" : facilityDensity < 400 ? "Medium" : "High";
-
-  const effectiveRate = getEffectiveHourlyRate(quote.visitsPerWeek);
-  const hoursPerVisit = quote.hoursPerVisit;
+  const visitsLabel = VISITS_PER_WEEK_OPTIONS.find((v) => v.value === quote.visitsPerWeek)?.label ?? `${quote.visitsPerWeek}x`;
 
   const porterTotal = quote.porters.reduce((sum, p) => sum + calculatePorterCost(p), 0);
   const specialServicesTotal = quote.specialServices.reduce((sum, s) => sum + calculateSpecialServiceCost(s), 0);
+  const monthlyTotal = quote.quotedMonthly || quote.calculatedMonthly;
 
   return (
     <div>
@@ -337,119 +332,25 @@ export default function BidSheetPage() {
           </div>
         </section>
 
-        {/* Bid Calculations */}
+        {/* Scope of Service — high-level only (no per-area or rate math) */}
         <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-            Bid Calculations
+            Scope of Service
           </h2>
-          <div className="bg-janpro-navy-light/20 rounded-lg p-6 space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-8">
-              <div className="flex justify-between">
-                <span>Total Square Feet</span>
-                <span className="font-bold text-lg">{quote.totalSqft.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>SUTM Count</span>
-                <span className="font-bold text-lg">{quote.sutmTotal}</span>
-              </div>
+          <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-sm mb-5">
+            <div className="flex justify-between py-1.5 border-b border-border/30">
+              <span className="text-muted-foreground">Service Frequency</span>
+              <span className="font-medium">{visitsLabel} per week</span>
             </div>
-
-            <div className="border-t border-border/30 pt-3 mt-3 space-y-2">
-              <div className="flex items-center justify-center gap-4 text-center font-mono">
-                <div>
-                  <p className="text-xs text-muted-foreground">Time/Visit</p>
-                  <p className="text-lg font-bold">{hoursPerVisit.toFixed(2)} hrs</p>
-                </div>
-                <span className="text-xl text-muted-foreground">×</span>
-                <div>
-                  <p className="text-xs text-muted-foreground">Freq/Week</p>
-                  <p className="text-lg font-bold">{quote.visitsPerWeek}</p>
-                </div>
-                <span className="text-xl text-muted-foreground">×</span>
-                <div>
-                  <p className="text-xs text-muted-foreground">Eff. Rate</p>
-                  <p className="text-lg font-bold">{formatCurrency(effectiveRate)}/hr</p>
-                </div>
-                <span className="text-xl text-muted-foreground">×</span>
-                <div>
-                  <p className="text-xs text-muted-foreground">Weeks/Mo</p>
-                  <p className="text-lg font-bold">4.33</p>
-                </div>
-              </div>
+            <div className="flex justify-between py-1.5 border-b border-border/30">
+              <span className="text-muted-foreground">Total Cleanable Sq. Ft.</span>
+              <span className="font-medium">{quote.totalSqft.toLocaleString()}</span>
             </div>
-
-            <div className="border-t-2 border-janpro-navy/20 pt-3 mt-3">
-              <div className="flex justify-between items-center">
-                <span className="text-base font-semibold">Monthly Billing</span>
-                <span className="text-2xl font-bold text-janpro-navy">
-                  {formatCurrency(quote.calculatedMonthly)}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                (Time per Visit × Frequency × Rate × Weeks/Month = Monthly Billing)
-              </p>
+            <div className="flex justify-between py-1.5 border-b border-border/30">
+              <span className="text-muted-foreground">Sanitary Units (SUTM)</span>
+              <span className="font-medium">{quote.sutmTotal}</span>
             </div>
-
-            {quote.quotedMonthly > 0 && quote.quotedMonthly !== quote.calculatedMonthly && (
-              <div className="flex justify-between items-center pt-2">
-                <span className="font-semibold">Quoted Monthly</span>
-                <span className="text-2xl font-bold text-janpro-navy">
-                  {formatCurrency(quote.quotedMonthly)}
-                </span>
-              </div>
-            )}
-
-            {quote.state === "CA" && quote.cpswpaEnabled && (
-              <div className="flex justify-between text-sm pt-1">
-                <span>CPSWPA Surcharge (CA)</span>
-                <span className="font-medium">$7.00/mo</span>
-              </div>
-            )}
-
-            {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
-              <div className="flex justify-between items-center pt-2">
-                <span className="font-semibold">Premium Monthly (w/ Envira Shield)</span>
-                <span className="text-xl font-bold text-janpro-navy">
-                  {formatCurrency(quote.premiumMonthly)}
-                </span>
-              </div>
-            )}
-
-            {specialServicesTotal > 0 && (
-              <div className="flex justify-between text-sm pt-1">
-                <span>Proposed Special Services</span>
-                <span className="font-medium">{formatCurrency(specialServicesTotal)}</span>
-              </div>
-            )}
-
-            {quote.initialCleanData.enabled && quote.initialCleanData.totalCost > 0 && (
-              <div className="flex justify-between text-sm pt-1">
-                <span>Initial Clean</span>
-                <span className="font-medium">{formatCurrency(quote.initialCleanData.totalCost)}</span>
-              </div>
-            )}
-
-            {porterTotal > 0 && (
-              <div className="flex justify-between text-sm pt-1">
-                <span>Day Porter Service</span>
-                <span className="font-medium">{formatCurrency(porterTotal)}/mo</span>
-              </div>
-            )}
-
-            {quote.restrictedClean && (
-              <div className="flex justify-between text-sm pt-1 text-amber-700">
-                <span>Restricted Clean Uplift</span>
-                <span className="font-medium">+20%</span>
-              </div>
-            )}
           </div>
-        </section>
-
-        {/* Flooring Breakdown */}
-        <section className="mb-8" style={{ breakInside: "avoid" }}>
-          <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-            Flooring Breakdown
-          </h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-janpro-navy/20 text-left">
@@ -472,75 +373,53 @@ export default function BidSheetPage() {
           </table>
         </section>
 
-        {/* Density Calculation */}
+        {/* Investment — the total amount and high-level add-ons only */}
         <section className="mb-8" style={{ breakInside: "avoid" }}>
           <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-            Estimated Cleaning Rate Calculation
+            Investment
           </h2>
-          <div className="text-sm space-y-2">
-            <p>
-              Total Sq. Ft. / Est. Foot Traffic = Facility Density
-            </p>
-            <p className="font-mono text-base">
-              {quote.totalSqft.toLocaleString()} / {quote.numEmployees} = <span className="font-bold text-janpro-navy">{facilityDensity}</span>
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {densityLabel} rate (Low: 0-200, Medium: 200-399, High: 400+)
-            </p>
+          <div className="bg-janpro-navy-light/20 rounded-lg p-6 space-y-2 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-base font-semibold">Monthly Service Investment</span>
+              <span className="text-2xl font-bold text-janpro-navy">{formatCurrency(monthlyTotal)}</span>
+            </div>
+
+            {quote.state === "CA" && quote.cpswpaEnabled && (
+              <div className="flex justify-between pt-1">
+                <span>CPSWPA Surcharge (CA)</span>
+                <span className="font-medium">$7.00/mo</span>
+              </div>
+            )}
+
+            {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
+              <div className="flex justify-between items-center pt-2 border-t border-border/30 mt-2">
+                <span className="font-semibold">Premium Monthly (w/ EnviroShield)</span>
+                <span className="text-xl font-bold text-janpro-navy">{formatCurrency(quote.premiumMonthly)}</span>
+              </div>
+            )}
+
+            {quote.initialCleanData.enabled && quote.initialCleanData.totalCost > 0 && (
+              <div className="flex justify-between pt-1">
+                <span>Initial Clean (one-time)</span>
+                <span className="font-medium">{formatCurrency(quote.initialCleanData.totalCost)}</span>
+              </div>
+            )}
+
+            {porterTotal > 0 && (
+              <div className="flex justify-between pt-1">
+                <span>Day Porter Service</span>
+                <span className="font-medium">{formatCurrency(porterTotal)}/mo</span>
+              </div>
+            )}
+
+            {specialServicesTotal > 0 && (
+              <div className="flex justify-between pt-1">
+                <span>Special Services</span>
+                <span className="font-medium">{formatCurrency(specialServicesTotal)}</span>
+              </div>
+            )}
           </div>
         </section>
-
-        {/* Special Services Detail */}
-        {quote.specialServices.length > 0 && (
-          <section className="mb-8" style={{ breakInside: "avoid" }}>
-            <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-              Special Services
-            </h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b-2 border-janpro-navy/20 text-left">
-                  <th className="pb-2 font-semibold">Service</th>
-                  <th className="pb-2 text-right font-semibold">Units/Sqft</th>
-                  <th className="pb-2 text-right font-semibold">Rate</th>
-                  <th className="pb-2 text-right font-semibold">Frequency</th>
-                  <th className="pb-2 text-right font-semibold">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.specialServices.map((s) => {
-                  const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
-                  return (
-                    <tr key={s.id} className="border-b border-border/30">
-                      <td className="py-2">{catalog?.label ?? s.serviceType}</td>
-                      <td className="py-2 text-right tabular-nums">{s.sqftOrUnits.toLocaleString()}</td>
-                      <td className="py-2 text-right tabular-nums">${s.rate}</td>
-                      <td className="py-2 text-right">{s.frequency}</td>
-                      <td className="py-2 text-right tabular-nums font-medium">{formatCurrency(calculateSpecialServiceCost(s))}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        {/* Signature */}
-        {quote.signatureData && (
-          <section className="mb-8" style={{ breakInside: "avoid" }}>
-            <h2 className="text-lg font-bold text-janpro-navy mb-4 pb-1 border-b">
-              Client Signature
-            </h2>
-            <div className="flex items-end gap-8">
-              <div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={quote.signatureData} alt="Client signature" className="max-h-[80px] border-b border-janpro-navy/30 pb-1" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {quote.contactName} — {quote.signedDate ? new Date(quote.signedDate).toLocaleDateString() : ""}
-                </p>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* Footer */}
         <div className="text-center pt-6 border-t-2 border-janpro-navy/20 text-xs text-muted-foreground">

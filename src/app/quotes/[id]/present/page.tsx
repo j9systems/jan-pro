@@ -227,14 +227,15 @@ export default function PresentPage() {
         </p>
       </div>
 
-      {/* Action Button */}
+      {/* Action Button — contract generation + signature happens through the
+          DocsAutomator flow on the quote page, not natively in the app. */}
       <div className="sticky bottom-0 bg-white/80 backdrop-blur-xl border-t border-border/50 p-4 -mx-6">
         <div className="max-w-4xl mx-auto flex justify-end">
           <Button
             size="lg"
-            onClick={() => router.push(`/quotes/${quote.id}/sign`)}
+            onClick={() => router.push(`/quotes/${quote.id}`)}
           >
-            Client Signature &rarr;
+            Generate Contract &rarr;
           </Button>
         </div>
       </div>

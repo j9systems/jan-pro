@@ -2,6 +2,7 @@ import type { Quote, RegionRecord } from "./types";
 import { formatCurrency } from "./utils";
 import {
   FLOOR_TYPES_V3,
+  AREA_TYPES,
   SPECIAL_SERVICES_CATALOG,
   REGIONS,
   VISITS_PER_WEEK_OPTIONS,
@@ -257,17 +258,35 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // Line items
-    line_items_sow: quote.areas.flatMap((area) =>
-      (area.frozenChecklist || [])
-        .filter((item) => item.frequency !== "excluded")
-        .map((item) => ({
-          area: area.areaName || `Area ${area.sortOrder}`,
+    // Line items. Prefer the per-area frozen checklist (task-level rows); when
+    // an area has no checklist snapshot, still emit one summary row so every
+    // area appears on the contract's cleaning schedule.
+    line_items_sow: quote.areas.flatMap((area) => {
+      const areaName = area.areaName || `Area ${area.sortOrder}`;
+      const tasks = (area.frozenChecklist || []).filter(
+        (item) => item.frequency !== "excluded"
+      );
+      if (tasks.length > 0) {
+        return tasks.map((item) => ({
+          area: areaName,
           task: item.task,
           frequency:
             item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
-        }))
-    ),
+        }));
+      }
+      const v = area.visitsPerWeek ?? quote.visitsPerWeek;
+      const freqLabel =
+        VISITS_PER_WEEK_OPTIONS.find((o) => o.value === v)?.label ?? `${v}x`;
+      const typeLabel =
+        AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
+      return [
+        {
+          area: areaName,
+          task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
+          frequency: `${freqLabel} per week`,
+        },
+      ];
+    }),
     line_items_floor_types: Array.from(floorTotals.entries()).map(
       ([key, sqft]) => ({
         floor_type: floorLabel(key),
