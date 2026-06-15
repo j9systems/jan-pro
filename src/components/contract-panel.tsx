@@ -16,10 +16,10 @@ import {
 import {
   FileSignature,
   Loader2,
-  PenLine,
   ExternalLink,
   RefreshCw,
   FileCheck2,
+  MailCheck,
 } from "lucide-react";
 import { fetchDocuments, getContractSignedUrl } from "@/lib/supabase/queries";
 import type { Quote, QuoteDocument } from "@/lib/types";
@@ -30,7 +30,7 @@ const DOC_STATUS: Record<string, { label: string; badgeClass: string }> = {
     badgeClass: "border-slate-300/50 bg-slate-100/80 text-slate-600",
   },
   sent: {
-    label: "Sent for signature",
+    label: "Emailed for signature",
     badgeClass: "border-amber-400/40 bg-amber-50 text-amber-600",
   },
   partially_signed: {
@@ -50,8 +50,6 @@ const DOC_STATUS: Record<string, { label: string; badgeClass: string }> = {
 interface GeneratedDoc {
   documentId: string;
   pdfUrl: string | null;
-  signer1Link: string | null;
-  signer2Link: string | null;
 }
 
 export function ContractPanel({
@@ -107,10 +105,6 @@ export function ContractPanel({
     }
   };
 
-  const openLink = (link: string | null) => {
-    if (link) window.open(link, "_blank");
-  };
-
   const handleOpenSignedPdf = async (doc: QuoteDocument) => {
     if (doc.signedPdfStoragePath) {
       const url = await getContractSignedUrl(doc.signedPdfStoragePath);
@@ -121,11 +115,6 @@ export function ContractPanel({
     }
     if (doc.signedPdfUrl) window.open(doc.signedPdfUrl, "_blank");
   };
-
-  // After the client (signer 1) signs, the next link to open is the rep's
-  // (signer 2) countersignature link.
-  const nextSignerLink = (doc: QuoteDocument) =>
-    doc.status === "partially_signed" ? doc.signer2Link : doc.signer1Link;
 
   const docStatusBadge = (status: string) => {
     const cfg = DOC_STATUS[status];
@@ -162,77 +151,57 @@ export function ContractPanel({
         {documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No contract generated yet. Generating the agreement emails it to the
-            client for signature and gives you a link to sign on this device.
+            client for signature from your connected email.
           </p>
         ) : (
           <div className="border rounded-md divide-y">
-            {documents.map((doc) => {
-              const link = nextSignerLink(doc);
-              const canSign =
-                doc.status === "sent" ||
-                doc.status === "partially_signed" ||
-                doc.status === "pending_review";
-              return (
-                <div
-                  key={doc.id}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-medium">
-                      {doc.type === "contract" ? "Service Agreement" : "Bid Sheet"}
-                    </span>
-                    {docStatusBadge(doc.status)}
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(doc.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {doc.status === "signed" &&
-                    (doc.signedPdfStoragePath || doc.signedPdfUrl) ? (
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium">
+                    {doc.type === "contract" ? "Service Agreement" : "Bid Sheet"}
+                  </span>
+                  {docStatusBadge(doc.status)}
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(doc.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {doc.status === "signed" &&
+                  (doc.signedPdfStoragePath || doc.signedPdfUrl) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => handleOpenSignedPdf(doc)}
+                    >
+                      <FileCheck2 className="h-3 w-3" />
+                      Signed PDF
+                    </Button>
+                  ) : (
+                    doc.pdfUrl && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="h-7 gap-1 text-xs"
-                        onClick={() => handleOpenSignedPdf(doc)}
+                        onClick={() => window.open(doc.pdfUrl!, "_blank")}
                       >
-                        <FileCheck2 className="h-3 w-3" />
-                        Signed PDF
+                        <ExternalLink className="h-3 w-3" />
+                        Preview
                       </Button>
-                    ) : (
-                      <>
-                        {doc.pdfUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1 text-xs"
-                            onClick={() => window.open(doc.pdfUrl!, "_blank")}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            Preview
-                          </Button>
-                        )}
-                        {canSign && link && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1 text-xs"
-                            onClick={() => openLink(link)}
-                          >
-                            <PenLine className="h-3 w-3" />
-                            Sign Now
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
+                    )
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
 
-      {/* Start date dialog — generation also sends, so confirm intent here */}
+      {/* Start date dialog — generation also emails the client, so confirm here */}
       <Dialog open={startDateOpen} onOpenChange={setStartDateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -240,7 +209,7 @@ export function ContractPanel({
             <DialogDescription>
               This generates the agreement from the quote and emails it to the
               client{quote.contactEmail ? ` (${quote.contactEmail})` : ""} for
-              signature. You&apos;ll also get a link to sign on this device.
+              signature, from your connected email.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -271,14 +240,18 @@ export function ContractPanel({
         </DialogContent>
       </Dialog>
 
-      {/* Preview + on-device signing dialog */}
+      {/* Preview dialog — review the sent agreement */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Contract Sent</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <MailCheck className="h-5 w-5 text-emerald-600" />
+              Contract Sent
+            </DialogTitle>
             <DialogDescription>
               The agreement has been emailed to the client for signature. Review
-              it below, or hand them this device to sign now.
+              the copy below; if anything is wrong, regenerate to resend a
+              corrected version.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 border rounded-md overflow-hidden bg-muted/30">
@@ -297,14 +270,6 @@ export function ContractPanel({
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
             <Button
-              onClick={() => openLink(generated?.signer1Link ?? null)}
-              disabled={!generated?.signer1Link}
-              className="gap-2"
-            >
-              <PenLine className="h-4 w-4" />
-              Sign Now (on this device)
-            </Button>
-            <Button
               variant="outline"
               onClick={() => {
                 setPreviewOpen(false);
@@ -316,24 +281,8 @@ export function ContractPanel({
               Regenerate &amp; Resend
             </Button>
             <div className="flex-1" />
-            <Button variant="ghost" onClick={() => setPreviewOpen(false)}>
-              Done
-            </Button>
+            <Button onClick={() => setPreviewOpen(false)}>Done</Button>
           </div>
-          {generated?.signer2Link && (
-            <p className="text-xs text-muted-foreground">
-              After the client signs, the rep countersignature link:{" "}
-              <a
-                href={generated.signer2Link}
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-              >
-                open rep signing link
-              </a>
-              .
-            </p>
-          )}
         </DialogContent>
       </Dialog>
     </Card>
