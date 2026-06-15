@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppHeader } from "@/components/app-header";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
             </main>
           </div>
         </TooltipProvider>
+        <Analytics />
       </body>
     </html>
   );
