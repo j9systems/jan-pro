@@ -217,22 +217,20 @@ export function buildContractPayload(
     quote.companyName || "Client"
   } (${formatShortDate(new Date())})`;
 
-  // DocsAutomator line-item groups must each contain at least one row — an
-  // empty array triggers a "line item row not found" error at generation.
-  // line_items_1 = cleaning schedule (SOW): prefer the per-area frozen
-  // checklist (task-level rows), else one summary row per area.
-  const cleaningScheduleRows = quote.areas.flatMap((area) => {
+  // Cleaning schedule (SOW) as newline-separated text — no line-item table,
+  // which DocsAutomator's detector handles unreliably in this template.
+  const sowLines = quote.areas.flatMap((area) => {
     const areaName = area.areaName || `Area ${area.sortOrder}`;
     const tasks = (area.frozenChecklist || []).filter(
       (item) => item.frequency !== "excluded"
     );
     if (tasks.length > 0) {
-      return tasks.map((item) => ({
-        area: areaName,
-        task: item.task,
-        frequency:
-          item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
-      }));
+      return tasks.map(
+        (item) =>
+          `${areaName}: ${item.task} — ${
+            item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1)
+          }`
+      );
     }
     const v = area.visitsPerWeek ?? quote.visitsPerWeek;
     const freqLabel =
@@ -240,20 +238,13 @@ export function buildContractPayload(
     const typeLabel =
       AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
     return [
-      {
-        area: areaName,
-        task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
-        frequency: `${freqLabel} per week`,
-      },
+      `${areaName}: Standard ${typeLabel.toLowerCase()} cleaning per scope of work — ${freqLabel} per week`,
     ];
   });
-  if (cleaningScheduleRows.length === 0) {
-    cleaningScheduleRows.push({
-      area: "All areas",
-      task: "Cleaning per agreed scope of work",
-      frequency: `${visitsLabel} per week`,
-    });
-  }
+  const sowText =
+    sowLines.length > 0
+      ? sowLines.join("\n")
+      : "Cleaning per agreed scope of work.";
 
   // Special services render as a single text placeholder (not a line-item
   // table) — DocsAutomator only reliably detects one line-item table here.
@@ -318,8 +309,8 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // Single line-item group (cleaning schedule), guaranteed non-empty above.
-    line_items_1: cleaningScheduleRows,
+    // No DocsAutomator line-item tables — SOW and special services are text.
+    sow_text: sowText,
     special_services_summary: specialServicesSummary,
   };
 }
