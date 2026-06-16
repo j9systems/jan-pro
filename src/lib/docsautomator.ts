@@ -255,24 +255,23 @@ export function buildContractPayload(
     });
   }
 
-  // line_items_2 = additional / special services.
-  const specialServiceRows = quote.specialServices.map((s) => {
-    const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
-    return {
-      service: catalog?.label ?? s.serviceType,
-      quantity: `${s.sqftOrUnits} ${catalog?.unit ?? "units"}`,
-      frequency: s.frequency,
-      price: formatCurrency(calculateSpecialServiceCost(s)),
-    };
-  });
-  if (specialServiceRows.length === 0) {
-    specialServiceRows.push({
-      service: "No additional services included",
-      quantity: "",
-      frequency: "",
-      price: "",
-    });
-  }
+  // Special services render as a single text placeholder (not a line-item
+  // table) — DocsAutomator only reliably detects one line-item table here.
+  const specialServicesSummary =
+    quote.specialServices.length > 0
+      ? quote.specialServices
+          .map((s) => {
+            const catalog = SPECIAL_SERVICES_CATALOG.find(
+              (c) => c.key === s.serviceType
+            );
+            const label = catalog?.label ?? s.serviceType;
+            const unit = catalog?.unit ?? "units";
+            return `${label} — ${s.sqftOrUnits} ${unit}, ${s.frequency} (${formatCurrency(
+              calculateSpecialServiceCost(s)
+            )})`;
+          })
+          .join("; ")
+      : "No additional services included.";
 
   return {
     // Region / operating entity (Corey's May 26 mapping, from regions table)
@@ -319,9 +318,8 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // Line items use DocsAutomator's numbered group convention; each group is
-    // guaranteed non-empty above.
+    // Single line-item group (cleaning schedule), guaranteed non-empty above.
     line_items_1: cleaningScheduleRows,
-    line_items_2: specialServiceRows,
+    special_services_summary: specialServicesSummary,
   };
 }
