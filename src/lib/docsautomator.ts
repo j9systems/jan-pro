@@ -1,7 +1,6 @@
 import type { Quote, RegionRecord } from "./types";
 import { formatCurrency } from "./utils";
 import {
-  FLOOR_TYPES_V3,
   AREA_TYPES,
   SPECIAL_SERVICES_CATALOG,
   REGIONS,
@@ -180,6 +179,16 @@ function formatDate(value?: string): string {
   return date.toLocaleDateString("en-US", DATE_FORMAT);
 }
 
+// Short MM/DD/YY date in JanPro's (Pacific) timezone, e.g. "06/15/26".
+function formatShortDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 export interface ContractPayloadOptions {
   serviceStartDate?: string;
   rep: { name: string; email: string };
@@ -197,28 +206,23 @@ export function buildContractPayload(
     `${quote.visitsPerWeek}x`;
   const monthly = quote.quotedMonthly || quote.calculatedMonthly;
 
-  const floorLabel = (value: string) =>
-    FLOOR_TYPES_V3.find((f) => f.value === value)?.label ?? value;
-
-  // Floor-type rollup (same aggregation the bid sheet and review step use)
-  const floorTotals = new Map<string, number>();
-  for (const area of quote.areas) {
-    floorTotals.set(
-      area.floorType,
-      (floorTotals.get(area.floorType) || 0) + area.sqftTotal
-    );
-  }
-
   const porterMonthly = quote.porters.reduce(
     (sum, p) => sum + calculatePorterCost(p),
     0
   );
+
+  // Document title, e.g. "Jan-Pro Service Agreement - J9 Systems (06/15/26)".
+  // Mapped to the automation's newDocumentNameField via {{document_title}}.
+  const documentTitle = `Jan-Pro Service Agreement - ${
+    quote.companyName || "Client"
+  } (${formatShortDate(new Date())})`;
 
   return {
     // Region / operating entity (Corey's May 26 mapping, from regions table)
     operating_entity: region?.operatingEntity ?? "",
     franchise_development_name: region?.franchiseDevelopmentName ?? "",
     region_name: regionLabel,
+    document_title: documentTitle,
 
     // Client
     company_name: quote.companyName,
@@ -258,10 +262,11 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // Line items. Prefer the per-area frozen checklist (task-level rows); when
-    // an area has no checklist snapshot, still emit one summary row so every
-    // area appears on the contract's cleaning schedule.
-    line_items_sow: quote.areas.flatMap((area) => {
+    // Line items use DocsAutomator's numbered group convention.
+    // line_items_1 = cleaning schedule (SOW). Prefer the per-area frozen
+    // checklist (task-level rows); when an area has no checklist snapshot,
+    // still emit one summary row so every area appears on the schedule.
+    line_items_1: quote.areas.flatMap((area) => {
       const areaName = area.areaName || `Area ${area.sortOrder}`;
       const tasks = (area.frozenChecklist || []).filter(
         (item) => item.frequency !== "excluded"
@@ -287,13 +292,8 @@ export function buildContractPayload(
         },
       ];
     }),
-    line_items_floor_types: Array.from(floorTotals.entries()).map(
-      ([key, sqft]) => ({
-        floor_type: floorLabel(key),
-        sqft: sqft.toLocaleString(),
-      })
-    ),
-    line_items_special_services: quote.specialServices.map((s) => {
+    // line_items_2 = additional / special services.
+    line_items_2: quote.specialServices.map((s) => {
       const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
       return {
         service: catalog?.label ?? s.serviceType,
