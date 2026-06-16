@@ -217,6 +217,63 @@ export function buildContractPayload(
     quote.companyName || "Client"
   } (${formatShortDate(new Date())})`;
 
+  // DocsAutomator line-item groups must each contain at least one row — an
+  // empty array triggers a "line item row not found" error at generation.
+  // line_items_1 = cleaning schedule (SOW): prefer the per-area frozen
+  // checklist (task-level rows), else one summary row per area.
+  const cleaningScheduleRows = quote.areas.flatMap((area) => {
+    const areaName = area.areaName || `Area ${area.sortOrder}`;
+    const tasks = (area.frozenChecklist || []).filter(
+      (item) => item.frequency !== "excluded"
+    );
+    if (tasks.length > 0) {
+      return tasks.map((item) => ({
+        area: areaName,
+        task: item.task,
+        frequency:
+          item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
+      }));
+    }
+    const v = area.visitsPerWeek ?? quote.visitsPerWeek;
+    const freqLabel =
+      VISITS_PER_WEEK_OPTIONS.find((o) => o.value === v)?.label ?? `${v}x`;
+    const typeLabel =
+      AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
+    return [
+      {
+        area: areaName,
+        task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
+        frequency: `${freqLabel} per week`,
+      },
+    ];
+  });
+  if (cleaningScheduleRows.length === 0) {
+    cleaningScheduleRows.push({
+      area: "All areas",
+      task: "Cleaning per agreed scope of work",
+      frequency: `${visitsLabel} per week`,
+    });
+  }
+
+  // line_items_2 = additional / special services.
+  const specialServiceRows = quote.specialServices.map((s) => {
+    const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
+    return {
+      service: catalog?.label ?? s.serviceType,
+      quantity: `${s.sqftOrUnits} ${catalog?.unit ?? "units"}`,
+      frequency: s.frequency,
+      price: formatCurrency(calculateSpecialServiceCost(s)),
+    };
+  });
+  if (specialServiceRows.length === 0) {
+    specialServiceRows.push({
+      service: "No additional services included",
+      quantity: "",
+      frequency: "",
+      price: "",
+    });
+  }
+
   return {
     // Region / operating entity (Corey's May 26 mapping, from regions table)
     operating_entity: region?.operatingEntity ?? "",
@@ -262,45 +319,9 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // Line items use DocsAutomator's numbered group convention.
-    // line_items_1 = cleaning schedule (SOW). Prefer the per-area frozen
-    // checklist (task-level rows); when an area has no checklist snapshot,
-    // still emit one summary row so every area appears on the schedule.
-    line_items_1: quote.areas.flatMap((area) => {
-      const areaName = area.areaName || `Area ${area.sortOrder}`;
-      const tasks = (area.frozenChecklist || []).filter(
-        (item) => item.frequency !== "excluded"
-      );
-      if (tasks.length > 0) {
-        return tasks.map((item) => ({
-          area: areaName,
-          task: item.task,
-          frequency:
-            item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
-        }));
-      }
-      const v = area.visitsPerWeek ?? quote.visitsPerWeek;
-      const freqLabel =
-        VISITS_PER_WEEK_OPTIONS.find((o) => o.value === v)?.label ?? `${v}x`;
-      const typeLabel =
-        AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
-      return [
-        {
-          area: areaName,
-          task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
-          frequency: `${freqLabel} per week`,
-        },
-      ];
-    }),
-    // line_items_2 = additional / special services.
-    line_items_2: quote.specialServices.map((s) => {
-      const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
-      return {
-        service: catalog?.label ?? s.serviceType,
-        quantity: `${s.sqftOrUnits} ${catalog?.unit ?? "units"}`,
-        frequency: s.frequency,
-        price: formatCurrency(calculateSpecialServiceCost(s)),
-      };
-    }),
+    // Line items use DocsAutomator's numbered group convention; each group is
+    // guaranteed non-empty above.
+    line_items_1: cleaningScheduleRows,
+    line_items_2: specialServiceRows,
   };
 }
