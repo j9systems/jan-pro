@@ -4,6 +4,18 @@ import { rowToQuote, rowToArea } from "@/lib/supabase/queries";
 import { createDocument, buildContractPayload } from "@/lib/docsautomator";
 import type { RegionRecord } from "@/lib/types";
 
+// Derive a display name from an email local part, e.g.
+// "carter.josephson@j9systems.com" -> "Carter Josephson".
+function emailToName(email: string): string {
+  const local = (email.split("@")[0] || "").trim();
+  if (!local) return "";
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+}
+
 // Generates the Services Agreement + SOW contract for a quote via
 // DocsAutomator and records it as a documents row in pending_review.
 // Does NOT change quote status — the rep must preview before sending.
@@ -85,9 +97,12 @@ export async function POST(request: Request) {
       .select("full_name, email")
       .eq("id", user.id)
       .single();
+    const repEmail = profile?.email || user.email || "";
     const rep = {
-      name: profile?.full_name || profile?.email || user.email || "",
-      email: profile?.email || user.email || "",
+      // Prefer the profile's full name; otherwise derive a readable name from
+      // the email so the contract/signer never shows a raw email as the name.
+      name: profile?.full_name || emailToName(repEmail) || repEmail,
+      email: repEmail,
     };
 
     const payload = buildContractPayload(quote, region, { serviceStartDate, rep });

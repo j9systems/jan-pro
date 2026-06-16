@@ -217,20 +217,22 @@ export function buildContractPayload(
     quote.companyName || "Client"
   } (${formatShortDate(new Date())})`;
 
-  // Cleaning schedule (SOW) as newline-separated text — no line-item table,
-  // which DocsAutomator's detector handles unreliably in this template.
-  const sowLines = quote.areas.flatMap((area) => {
+  // Cleaning schedule (SOW) — DocsAutomator line item group 1. The template
+  // row starts with the {{line_items_1}} marker; the field placeholders are
+  // bare names ({{sow_area}}, {{sow_task}}, {{sow_frequency}}) matching these
+  // keys. Prefer the per-area frozen checklist, else one summary row per area.
+  const lineItems1 = quote.areas.flatMap((area) => {
     const areaName = area.areaName || `Area ${area.sortOrder}`;
     const tasks = (area.frozenChecklist || []).filter(
       (item) => item.frequency !== "excluded"
     );
     if (tasks.length > 0) {
-      return tasks.map(
-        (item) =>
-          `${areaName}: ${item.task} — ${
-            item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1)
-          }`
-      );
+      return tasks.map((item) => ({
+        sow_area: areaName,
+        sow_task: item.task,
+        sow_frequency:
+          item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1),
+      }));
     }
     const v = area.visitsPerWeek ?? quote.visitsPerWeek;
     const freqLabel =
@@ -238,31 +240,40 @@ export function buildContractPayload(
     const typeLabel =
       AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
     return [
-      `${areaName}: Standard ${typeLabel.toLowerCase()} cleaning per scope of work — ${freqLabel} per week`,
+      {
+        sow_area: areaName,
+        sow_task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
+        sow_frequency: `${freqLabel} per week`,
+      },
     ];
   });
-  const sowText =
-    sowLines.length > 0
-      ? sowLines.join("\n")
-      : "Cleaning per agreed scope of work.";
+  if (lineItems1.length === 0) {
+    lineItems1.push({
+      sow_area: "All areas",
+      sow_task: "Cleaning per agreed scope of work",
+      sow_frequency: `${visitsLabel} per week`,
+    });
+  }
 
-  // Special services render as a single text placeholder (not a line-item
-  // table) — DocsAutomator only reliably detects one line-item table here.
-  const specialServicesSummary =
-    quote.specialServices.length > 0
-      ? quote.specialServices
-          .map((s) => {
-            const catalog = SPECIAL_SERVICES_CATALOG.find(
-              (c) => c.key === s.serviceType
-            );
-            const label = catalog?.label ?? s.serviceType;
-            const unit = catalog?.unit ?? "units";
-            return `${label} — ${s.sqftOrUnits} ${unit}, ${s.frequency} (${formatCurrency(
-              calculateSpecialServiceCost(s)
-            )})`;
-          })
-          .join("; ")
-      : "No additional services included.";
+  // Special services — DocsAutomator line item group 2 ({{line_items_2}}
+  // marker + {{ss_service}}/{{ss_quantity}}/{{ss_frequency}}/{{ss_price}}).
+  const lineItems2 = quote.specialServices.map((s) => {
+    const catalog = SPECIAL_SERVICES_CATALOG.find((c) => c.key === s.serviceType);
+    return {
+      ss_service: catalog?.label ?? s.serviceType,
+      ss_quantity: `${s.sqftOrUnits} ${catalog?.unit ?? "units"}`,
+      ss_frequency: s.frequency,
+      ss_price: formatCurrency(calculateSpecialServiceCost(s)),
+    };
+  });
+  if (lineItems2.length === 0) {
+    lineItems2.push({
+      ss_service: "No additional services included",
+      ss_quantity: "",
+      ss_frequency: "",
+      ss_price: "",
+    });
+  }
 
   return {
     // Region / operating entity (Corey's May 26 mapping, from regions table)
@@ -309,8 +320,8 @@ export function buildContractPayload(
     rep_name: rep.name,
     rep_email: rep.email,
 
-    // No DocsAutomator line-item tables — SOW and special services are text.
-    sow_text: sowText,
-    special_services_summary: specialServicesSummary,
+    // DocsAutomator line-item groups (real tables in the template).
+    line_items_1: lineItems1,
+    line_items_2: lineItems2,
   };
 }
