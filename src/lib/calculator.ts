@@ -231,6 +231,20 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     premiumMonthly = calculatedMonthly + (totalSqft * PREMIUM_RATE_PER_SQFT);
   }
 
+  const roundedCalculatedMonthly = Math.round(calculatedMonthly * 100) / 100;
+
+  // The quoted amount tracks the calculated amount, but a manual override is
+  // allowed to "stick" — including across reloads, since it lives in the
+  // persisted quotedMonthly value. The override is only dropped when the
+  // calculation itself changes (e.g. an area is added, removed, or modified),
+  // at which point the quoted amount re-syncs to the new calculated value.
+  // (Previously `quote.quotedMonthly || calculated` made any value stick
+  // forever, masking later calculation changes.)
+  const calculatedChanged = roundedCalculatedMonthly !== quote.calculatedMonthly;
+  const quotedMonthly = calculatedChanged
+    ? roundedCalculatedMonthly
+    : quote.quotedMonthly || roundedCalculatedMonthly;
+
   return {
     areas: areasWithCalcs,
     totalSqft,
@@ -238,9 +252,9 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     facilityDensityTier,
     hoursPerVisit,
     sutmTotal,
-    calculatedMonthly: Math.round(calculatedMonthly * 100) / 100,
+    calculatedMonthly: roundedCalculatedMonthly,
     premiumMonthly: Math.round(premiumMonthly * 100) / 100,
-    quotedMonthly: quote.quotedMonthly || Math.round(calculatedMonthly * 100) / 100,
+    quotedMonthly,
     initialCleanData: {
       ...quote.initialCleanData,
       totalCost: initialCleanTotal,
