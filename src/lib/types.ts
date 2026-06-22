@@ -247,9 +247,6 @@ export interface Quote {
   sutmTotal: number;
   calculatedMonthly: number;
   quotedMonthly: number;
-  // Transient (not persisted): true once the user manually edits the quoted
-  // amount, which stops it from auto-syncing to calculatedMonthly.
-  quotedMonthlyManual?: boolean;
   notes: string;
   status: QuoteStatus;
   signatureData?: string;

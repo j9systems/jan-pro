@@ -80,7 +80,6 @@ function createBlankQuote(): Quote {
     sutmTotal: 0,
     calculatedMonthly: 0,
     quotedMonthly: 0,
-    quotedMonthlyManual: false,
     notes: "",
     recordingTranscript: "",
     regionId: undefined,

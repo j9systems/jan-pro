@@ -267,6 +267,8 @@ export function SummaryStep() {
     .reduce((sum, s) => sum + calculateSpecialServiceCost(s), 0);
 
   const belowMinimum = quote.quotedMonthly > 0 && quote.quotedMonthly < regionalMinimum;
+  const isQuoteOverridden =
+    Math.round(quote.quotedMonthly * 100) !== Math.round(quote.calculatedMonthly * 100);
 
   const getFloorLabel = (val: string) =>
     FLOOR_TYPES_V3.find((f) => f.value === val)?.label ?? val;
@@ -513,15 +515,14 @@ export function SummaryStep() {
                     value={quote.quotedMonthly || ""}
                     onChange={(e) => {
                       const raw = e.target.value;
-                      if (raw === "") {
-                        // Clearing the field reverts to the calculated amount.
-                        updateQuote({ quotedMonthlyManual: false });
-                      } else {
-                        updateQuote({
-                          quotedMonthly: parseFloat(raw) || 0,
-                          quotedMonthlyManual: true,
-                        });
-                      }
+                      // Clearing the field reverts to the calculated amount;
+                      // any other value is a manual override.
+                      updateQuote({
+                        quotedMonthly:
+                          raw === ""
+                            ? quote.calculatedMonthly
+                            : parseFloat(raw) || 0,
+                      });
                     }}
                     className="pl-8 text-xl font-bold h-14 text-janpro-navy"
                     placeholder={quote.calculatedMonthly.toFixed(2)}
@@ -533,18 +534,18 @@ export function SummaryStep() {
                     Below regional minimum of {formatCurrency(regionalMinimum)}
                   </div>
                 )}
-                {quote.quotedMonthlyManual &&
-                  Math.round(quote.quotedMonthly * 100) !==
-                    Math.round(quote.calculatedMonthly * 100) && (
-                    <button
-                      type="button"
-                      onClick={() => updateQuote({ quotedMonthlyManual: false })}
-                      className="text-xs text-janpro-navy underline-offset-2 hover:underline"
-                    >
-                      Manually overridden — reset to calculated (
-                      {formatCurrency(quote.calculatedMonthly)})
-                    </button>
-                  )}
+                {isQuoteOverridden && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateQuote({ quotedMonthly: quote.calculatedMonthly })
+                    }
+                    className="text-xs text-janpro-navy underline-offset-2 hover:underline"
+                  >
+                    Manually overridden — reset to calculated (
+                    {formatCurrency(quote.calculatedMonthly)})
+                  </button>
+                )}
               </div>
 
               {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (
