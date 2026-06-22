@@ -511,11 +511,18 @@ export function SummaryStep() {
                     step={0.01}
                     min={0}
                     value={quote.quotedMonthly || ""}
-                    onChange={(e) =>
-                      updateQuote({
-                        quotedMonthly: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        // Clearing the field reverts to the calculated amount.
+                        updateQuote({ quotedMonthlyManual: false });
+                      } else {
+                        updateQuote({
+                          quotedMonthly: parseFloat(raw) || 0,
+                          quotedMonthlyManual: true,
+                        });
+                      }
+                    }}
                     className="pl-8 text-xl font-bold h-14 text-janpro-navy"
                     placeholder={quote.calculatedMonthly.toFixed(2)}
                   />
@@ -526,6 +533,18 @@ export function SummaryStep() {
                     Below regional minimum of {formatCurrency(regionalMinimum)}
                   </div>
                 )}
+                {quote.quotedMonthlyManual &&
+                  Math.round(quote.quotedMonthly * 100) !==
+                    Math.round(quote.calculatedMonthly * 100) && (
+                    <button
+                      type="button"
+                      onClick={() => updateQuote({ quotedMonthlyManual: false })}
+                      className="text-xs text-janpro-navy underline-offset-2 hover:underline"
+                    >
+                      Manually overridden — reset to calculated (
+                      {formatCurrency(quote.calculatedMonthly)})
+                    </button>
+                  )}
               </div>
 
               {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (

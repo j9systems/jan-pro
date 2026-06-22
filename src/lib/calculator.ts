@@ -240,7 +240,12 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
     sutmTotal,
     calculatedMonthly: Math.round(calculatedMonthly * 100) / 100,
     premiumMonthly: Math.round(premiumMonthly * 100) / 100,
-    quotedMonthly: quote.quotedMonthly || Math.round(calculatedMonthly * 100) / 100,
+    // Quoted amount always tracks the calculated amount unless the user has
+    // explicitly overridden it (quotedMonthlyManual). Using `||` here previously
+    // caused any non-zero quoted value to "stick" forever and never re-sync.
+    quotedMonthly: quote.quotedMonthlyManual
+      ? quote.quotedMonthly
+      : Math.round(calculatedMonthly * 100) / 100,
     initialCleanData: {
       ...quote.initialCleanData,
       totalCost: initialCleanTotal,
