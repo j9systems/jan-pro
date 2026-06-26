@@ -184,7 +184,7 @@ export async function POST(request: Request) {
       : "\n\nNo areas have been captured yet.";
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       temperature: 0,
       system: SYSTEM_PROMPT,
