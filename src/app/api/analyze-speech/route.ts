@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createTierMessage } from "@/lib/anthropic";
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a commercial cleaning salesperson capture facility areas during a walkthrough. You receive a transcript of their speech and must extract structured area data.
 
@@ -183,8 +184,7 @@ export async function POST(request: Request) {
           .join("\n")}`
       : "\n\nNo areas have been captured yet.";
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const message = await createTierMessage(client, {
       max_tokens: 1024,
       temperature: 0,
       system: SYSTEM_PROMPT,

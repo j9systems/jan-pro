@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createTierMessage } from "@/lib/anthropic";
 
 const SYSTEM_PROMPT = `You are a quality assurance reviewer for a commercial cleaning estimate. You receive the full quote data including all areas, their measurements, floor types, area types, unit items, the AI citations (what the salesperson actually said), and the recording transcript.
 
@@ -122,8 +123,7 @@ export async function POST(request: Request) {
       ? `Facility: ${facility.type}, ${facility.employees} employees, ${facility.floors} floors, ${facility.restrooms} restrooms, ${facility.visitsPerWeek}x/week`
       : "";
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const message = await createTierMessage(client, {
       max_tokens: 2048,
       temperature: 0,
       system: SYSTEM_PROMPT,
