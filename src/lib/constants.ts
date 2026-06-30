@@ -27,8 +27,10 @@ export const REGIONAL_MONTHLY_MINIMUMS: Record<string, Record<number, number>> =
   southern_california: { 1: 350, 2: 395, 3: 475, 4: 550, 5: 649 },
   los_angeles: { 1: 295, 2: 375, 3: 475, 4: 575, 5: 675 },
   greater_bay_area: { 1: 300, 2: 400, 3: 525, 4: 650, 5: 800, 6: 950, 7: 1100 },
-  silicon_valley_sf: { 1: 285, 2: 380, 3: 575 },
-  silicon_valley: { 1: 285, 2: 380, 3: 575 },
+  // 4x/5x are PLACEHOLDERS extrapolated from the 1x–3x progression — confirm
+  // with Jodie / the GBA pricing doc (the reference jumps 3x → 5x).
+  silicon_valley_sf: { 1: 285, 2: 380, 3: 575, 4: 700, 5: 850 },
+  silicon_valley: { 1: 285, 2: 380, 3: 575, 4: 700, 5: 850 },
   san_francisco: { 1: 300, 2: 400, 3: 525, 4: 650, 5: 800 },
   madrock: { 1: 350, 2: 395, 3: 475, 4: 550, 5: 649 },
 };

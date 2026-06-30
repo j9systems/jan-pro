@@ -140,6 +140,9 @@ export interface InitialClean {
   sutmCount: number;
   additionalServices: number;
   totalCost: number;
+  // Optional flat-price override for the whole initial clean. When set (> 0),
+  // it replaces the calculated total so the rep can quote a custom price.
+  totalCostOverride?: number;
 }
 
 export interface SpecialService {
@@ -215,6 +218,7 @@ export interface Quote {
   address: string;
   city: string;
   state: string;
+  postalCode: string;
   // Facility
   facilityType: string;
   region: Region;

@@ -295,7 +295,7 @@ export default function BidSheetPage() {
             </div>
             <div className="flex justify-between py-1.5 border-b border-border/30">
               <span className="text-muted-foreground">Location</span>
-              <span className="font-medium">{[quote.address, quote.city, quote.state].filter(Boolean).join(", ") || "—"}</span>
+              <span className="font-medium">{[quote.address, quote.city, [quote.state, quote.postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-border/30">
               <span className="text-muted-foreground">Est. Foot Traffic (per day)</span>
@@ -385,8 +385,8 @@ export default function BidSheetPage() {
             </div>
 
             {quote.state === "CA" && quote.cpswpaEnabled && (
-              <div className="flex justify-between pt-1">
-                <span>CPSWPA Surcharge (CA)</span>
+              <div className="flex justify-between pt-1 text-muted-foreground">
+                <span>CPSWPA Surcharge (CA) — included in monthly</span>
                 <span className="font-medium">$7.00/mo</span>
               </div>
             )}

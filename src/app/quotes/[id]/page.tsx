@@ -367,7 +367,11 @@ export default function QuoteDetailPage() {
             <p>{quote.contactEmail}</p>
             <p>{quote.contactPhone}</p>
             <p>
-              {[quote.address, quote.city, quote.state]
+              {[
+                quote.address,
+                quote.city,
+                [quote.state, quote.postalCode].filter(Boolean).join(" "),
+              ]
                 .filter(Boolean)
                 .join(", ")}
             </p>

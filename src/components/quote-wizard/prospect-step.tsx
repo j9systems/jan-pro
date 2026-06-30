@@ -93,6 +93,17 @@ export function ProspectStep() {
             placeholder="CA"
           />
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="postalCode">ZIP Code</Label>
+          <Input
+            id="postalCode"
+            inputMode="numeric"
+            value={quote.postalCode}
+            onChange={(e) => updateQuote({ postalCode: e.target.value })}
+            placeholder="90001"
+          />
+        </div>
       </div>
     </div>
   );
