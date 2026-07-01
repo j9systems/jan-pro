@@ -58,7 +58,11 @@ export function ReviewStep() {
             <p>{quote.contactEmail}</p>
             <p>{quote.contactPhone}</p>
             <p>
-              {[quote.address, quote.city, quote.state]
+              {[
+                quote.address,
+                quote.city,
+                [quote.state, quote.postalCode].filter(Boolean).join(" "),
+              ]
                 .filter(Boolean)
                 .join(", ")}
             </p>
@@ -306,7 +310,7 @@ export function ReviewStep() {
             </div>
             {quote.state === "CA" && quote.cpswpaEnabled && (
               <p className="text-xs text-white/60 mt-2 relative">
-                Includes $7.00 CPSWPA surcharge (California)
+                Includes a $7.00 CPSWPA surcharge (California) in the monthly price
               </p>
             )}
             {quote.premiumTreatmentEnabled && quote.premiumMonthly > 0 && (

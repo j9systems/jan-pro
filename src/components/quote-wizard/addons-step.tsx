@@ -25,7 +25,7 @@ import {
   SPECIAL_SERVICE_RATES,
   FREQUENCY_OPTIONS,
 } from "@/lib/constants";
-import { calculateInitialClean, calculatePorterCost, calculateSpecialServiceCost } from "@/lib/calculator";
+import { calculateInitialClean, calculatePorterCost, calculateSpecialServiceCost, countAreaSutm } from "@/lib/calculator";
 import { formatCurrency, generateId } from "@/lib/utils";
 import type { InitialClean, SpecialService } from "@/lib/types";
 
@@ -51,17 +51,7 @@ function InitialCleanSection() {
     ) {
       const totalSqft = quote.areas.reduce((sum, a) => sum + a.sqftTotal, 0);
       // SUTM = individual fixtures (toilets + urinals + sinks + mirrors) + explicit small/large SUTM entries
-      const totalSutm = quote.areas.reduce(
-        (sum, a) =>
-          sum +
-          (a.unitItems.toilets || 0) +
-          (a.unitItems.urinals || 0) +
-          (a.unitItems.sinks || 0) +
-          (a.unitItems.mirrors || 0) +
-          (a.unitItems.small_sutm || 0) +
-          (a.unitItems.large_sutm || 0),
-        0
-      );
+      const totalSutm = quote.areas.reduce((sum, a) => sum + countAreaSutm(a), 0);
       updateQuote({
         initialCleanData: { ...data, officesSqft: totalSqft, sutmCount: totalSutm },
       });
@@ -78,6 +68,9 @@ function InitialCleanSection() {
   };
 
   const totalCost = calculateInitialClean({ ...data });
+  // The calculated total ignoring any override, shown when the rep has set one.
+  const calculatedCost = calculateInitialClean({ ...data, totalCostOverride: 0 });
+  const isOverridden = (data.totalCostOverride ?? 0) > 0;
 
   return (
     <Card>
@@ -185,12 +178,39 @@ function InitialCleanSection() {
                     placeholder="0.00"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Override Total ($)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    value={data.totalCostOverride || ""}
+                    onChange={(e) =>
+                      updateIC({
+                        totalCostOverride: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="Auto"
+                  />
+                </div>
               </div>
-              <div className="mt-4 text-right">
-                <span className="text-sm text-muted-foreground">Total: </span>
-                <span className="text-lg font-semibold text-janpro-navy">
-                  {formatCurrency(totalCost)}
-                </span>
+              <div className="mt-4 flex items-center justify-end gap-3">
+                {isOverridden && (
+                  <button
+                    type="button"
+                    onClick={() => updateIC({ totalCostOverride: 0 })}
+                    className="text-xs text-janpro-navy underline-offset-2 hover:underline"
+                  >
+                    Overridden — reset to calculated ({formatCurrency(calculatedCost)})
+                  </button>
+                )}
+                <div>
+                  <span className="text-sm text-muted-foreground">Total: </span>
+                  <span className="text-lg font-semibold text-janpro-navy">
+                    {formatCurrency(totalCost)}
+                  </span>
+                </div>
               </div>
             </CardContent>
           )}

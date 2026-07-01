@@ -30,6 +30,23 @@ export function getEffectiveHourlyRate(visitsPerWeek: number): number {
   return FREQUENCY_HOURLY_RATES[visitsPerWeek] ?? 31;
 }
 
+// Total SUTM (Sink/Urinal/Toilet/Mirror) fixture count for an area. Pulls
+// directly from the individual fixtures the rep enters (toilets, urinals,
+// sinks, mirrors) plus any explicit small/large SUTM entries — so the count is
+// accurate even when the Small/Large fields are left blank, and break-room
+// sinks are included. Used by both the monthly total and the Initial Clean.
+export function countAreaSutm(area: QuoteArea): number {
+  const u = area.unitItems || {};
+  return (
+    (u.toilets || 0) +
+    (u.urinals || 0) +
+    (u.sinks || 0) +
+    (u.mirrors || 0) +
+    (u.small_sutm || 0) +
+    (u.large_sutm || 0)
+  );
+}
+
 export function getCarpetRate(
   visitsPerWeek: number,
   densityTier: DensityTier
@@ -121,6 +138,11 @@ export function calculateAreaCostPerMonth(
 export function calculateInitialClean(data: InitialClean): number {
   if (!data.enabled) return 0;
 
+  // A flat-price override, when set, replaces the calculated total entirely.
+  if (data.totalCostOverride != null && data.totalCostOverride > 0) {
+    return data.totalCostOverride;
+  }
+
   let totalHours = 0;
 
   if (data.officesSqft > 0) {
@@ -155,7 +177,16 @@ export function getRegionalMinimum(region: string, visitsPerWeek: number): numbe
   if (!regionMins) return 0;
 
   const lookupKey = visitsPerWeek < 1 ? 1 : Math.round(visitsPerWeek);
-  return regionMins[lookupKey] ?? 0;
+  if (regionMins[lookupKey] != null) return regionMins[lookupKey];
+
+  // Defensive fallback: if this exact frequency isn't defined for the region
+  // (e.g. a gap in the pricing table), use the next-lower defined tier rather
+  // than silently dropping the minimum to $0.
+  const lowerKeys = Object.keys(regionMins)
+    .map(Number)
+    .filter((k) => k <= lookupKey)
+    .sort((a, b) => b - a);
+  return lowerKeys.length > 0 ? regionMins[lowerKeys[0]] : 0;
 }
 
 export function calculateQuote(quote: Quote): Partial<Quote> {
@@ -184,10 +215,9 @@ export function calculateQuote(quote: Quote): Partial<Quote> {
   const totalMinsPerVisit = areasWithCalcs.reduce((sum, a) => sum + a.minsPerVisit, 0);
   const hoursPerVisit = totalMinsPerVisit / 60;
 
-  // Sum all unit items named "small_sutm" or "large_sutm" or "toilets" etc. for SUTM total
-  const sutmTotal = areasWithCalcs.reduce((sum, a) => {
-    return sum + (a.unitItems.small_sutm || 0) + (a.unitItems.large_sutm || 0);
-  }, 0);
+  // SUTM total pulls directly from the fixture counts entered per area
+  // (toilets, urinals, sinks, mirrors + explicit small/large SUTM).
+  const sutmTotal = areasWithCalcs.reduce((sum, a) => sum + countAreaSutm(a), 0);
 
   // Subtotal from areas
   const subtotalMonthly = areasWithCalcs.reduce((sum, a) => sum + a.costPerMonth, 0);

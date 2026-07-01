@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuoteStore } from "@/lib/store";
-import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost, getEffectiveProductionRate } from "@/lib/calculator";
+import { getRegionalMinimum, calculatePorterCost, calculateSpecialServiceCost, getEffectiveProductionRate, getEffectiveHourlyRate } from "@/lib/calculator";
 import { formatCurrency } from "@/lib/utils";
 import { REGIONS, SPECIAL_SERVICES_CATALOG, FLOOR_TYPES_V3, AREA_TYPES } from "@/lib/constants";
 
@@ -307,7 +307,7 @@ export function SummaryStep() {
               </p>
               <p>
                 <span className="text-muted-foreground">Location:</span>{" "}
-                {[quote.address, quote.city, quote.state].filter(Boolean).join(", ") || "—"}
+                {[quote.address, quote.city, [quote.state, quote.postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"}
               </p>
               <p>
                 <span className="text-muted-foreground">Type:</span>{" "}
@@ -441,6 +441,15 @@ export function SummaryStep() {
                   <p className="text-muted-foreground">SUTM Count</p>
                   <p className="text-lg font-semibold">{quote.sutmTotal}</p>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">Hourly Rate</p>
+                  <p className="text-lg font-semibold">
+                    {formatCurrency(getEffectiveHourlyRate(quote.visitsPerWeek))}/hr
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    at {quote.visitsPerWeek}x/week
+                  </p>
+                </div>
               </div>
 
               <Separator />
@@ -492,7 +501,9 @@ export function SummaryStep() {
 
               {quote.state === "CA" && quote.cpswpaEnabled && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">CPSWPA Surcharge (CA)</span>
+                  <span className="text-muted-foreground">
+                    CPSWPA Surcharge (CA) — included in monthly
+                  </span>
                   <span>$7.00</span>
                 </div>
               )}

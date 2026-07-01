@@ -47,6 +47,7 @@ function createBlankQuote(): Quote {
     address: "",
     city: "",
     state: "CA",
+    postalCode: "",
     facilityType: "Office",
     region: "southern_california",
     numEmployees: 0,

@@ -96,7 +96,7 @@ export default function PresentPage() {
           <p className="text-muted-foreground">per month</p>
           {quote.state === "CA" && quote.cpswpaEnabled && (
             <p className="text-xs text-muted-foreground mt-2">
-              Includes $7.00 CPSWPA surcharge (California)
+              Includes a $7.00 CPSWPA surcharge (California) in the monthly price
             </p>
           )}
         </div>

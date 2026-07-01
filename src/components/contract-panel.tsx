@@ -67,6 +67,8 @@ export function ContractPanel({
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<GeneratedDoc | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadDocuments = useCallback(async () => {
@@ -94,6 +96,7 @@ export function ContractPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate contract");
       setGenerated(data);
+      setSent(false);
       setStartDateOpen(false);
       setPreviewOpen(true);
       await loadDocuments();
@@ -102,6 +105,29 @@ export function ContractPanel({
       setError(err instanceof Error ? err.message : "Failed to generate contract");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!generated) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/documents/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: generated.documentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send contract");
+      setGenerated((g) => (g ? { ...g, pdfUrl: data.pdfUrl ?? g.pdfUrl } : g));
+      setSent(true);
+      await loadDocuments();
+      onChanged?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send contract");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -150,8 +176,9 @@ export function ContractPanel({
         )}
         {documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No contract generated yet. Generating the agreement emails it to the
-            client for signature from your connected email.
+            No contract generated yet. Generating builds a preview you can review;
+            the client is only emailed for signature after you press &ldquo;Send
+            to client&rdquo;.
           </p>
         ) : (
           <div className="border rounded-md divide-y">
@@ -181,6 +208,20 @@ export function ContractPanel({
                       <FileCheck2 className="h-3 w-3" />
                       Signed PDF
                     </Button>
+                  ) : doc.status === "pending_review" ? (
+                    <Button
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => {
+                        setGenerated({ documentId: doc.id, pdfUrl: doc.pdfUrl });
+                        setSent(false);
+                        setError(null);
+                        setPreviewOpen(true);
+                      }}
+                    >
+                      <FileSignature className="h-3 w-3" />
+                      Review &amp; send
+                    </Button>
                   ) : (
                     doc.pdfUrl && (
                       <Button
@@ -205,11 +246,11 @@ export function ContractPanel({
       <Dialog open={startDateOpen} onOpenChange={setStartDateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Generate &amp; Send Service Agreement</DialogTitle>
+            <DialogTitle>Generate Service Agreement Preview</DialogTitle>
             <DialogDescription>
-              This generates the agreement from the quote and emails it to the
-              client{quote.contactEmail ? ` (${quote.contactEmail})` : ""} for
-              signature, from your connected email.
+              This generates the agreement from the quote so you can review it
+              first. The client is not emailed until you press &ldquo;Send to
+              client&rdquo; on the next screen.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -233,25 +274,36 @@ export function ContractPanel({
                 ) : (
                   <FileSignature className="h-4 w-4" />
                 )}
-                {generating ? "Generating..." : "Generate & Send"}
+                {generating ? "Generating..." : "Generate Preview"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Preview dialog — review the sent agreement */}
+      {/* Preview dialog — review BEFORE sending, then send on approval */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MailCheck className="h-5 w-5 text-emerald-600" />
-              Contract Sent
+              {sent ? (
+                <>
+                  <MailCheck className="h-5 w-5 text-emerald-600" />
+                  Contract Sent
+                </>
+              ) : (
+                <>
+                  <FileSignature className="h-5 w-5 text-janpro-navy" />
+                  Review Before Sending
+                </>
+              )}
             </DialogTitle>
             <DialogDescription>
-              The agreement has been emailed to the client for signature. Review
-              the copy below; if anything is wrong, regenerate to resend a
-              corrected version.
+              {sent
+                ? `The agreement has been emailed to the client${
+                    quote.contactEmail ? ` (${quote.contactEmail})` : ""
+                  } for signature.`
+                : "Review the agreement below. The client has not been emailed yet — press “Send to client” when it looks right, or regenerate to make changes."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 border rounded-md overflow-hidden bg-muted/30">
@@ -269,19 +321,33 @@ export function ContractPanel({
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPreviewOpen(false);
-                setStartDateOpen(true);
-              }}
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Regenerate &amp; Resend
-            </Button>
+            {!sent && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPreviewOpen(false);
+                  setStartDateOpen(true);
+                }}
+                disabled={sending}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Regenerate
+              </Button>
+            )}
             <div className="flex-1" />
-            <Button onClick={() => setPreviewOpen(false)}>Done</Button>
+            {sent ? (
+              <Button onClick={() => setPreviewOpen(false)}>Done</Button>
+            ) : (
+              <Button onClick={handleSend} disabled={sending} className="gap-2">
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MailCheck className="h-4 w-4" />
+                )}
+                {sending ? "Sending..." : "Send to client"}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

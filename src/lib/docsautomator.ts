@@ -239,10 +239,16 @@ export function buildContractPayload(
       VISITS_PER_WEEK_OPTIONS.find((o) => o.value === v)?.label ?? `${v}x`;
     const typeLabel =
       AREA_TYPES.find((t) => t.value === area.areaType)?.label ?? "Area";
+    // Avoid awkward generic copy like "Standard other cleaning ..." when the
+    // area type is unspecified.
+    const isGenericType = area.areaType === "other" || typeLabel === "Area";
+    const sowTask = isGenericType
+      ? "Routine cleaning and sanitation per the attached scope of work"
+      : `Routine cleaning and sanitation of ${typeLabel.toLowerCase()} areas per the attached scope of work`;
     return [
       {
         sow_area: areaName,
-        sow_task: `Standard ${typeLabel.toLowerCase()} cleaning per scope of work`,
+        sow_task: sowTask,
         sow_frequency: `${freqLabel} per week`,
       },
     ];
@@ -288,7 +294,11 @@ export function buildContractPayload(
     contact_email: quote.contactEmail,
     contact_phone: quote.contactPhone,
     billing_email: quote.contactEmail,
-    service_address: [quote.address, quote.city, quote.state]
+    service_address: [
+      quote.address,
+      quote.city,
+      [quote.state, quote.postalCode].filter(Boolean).join(" "),
+    ]
       .filter(Boolean)
       .join(", "),
 
